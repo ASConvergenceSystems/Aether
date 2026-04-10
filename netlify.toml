@@ -17,6 +17,12 @@
   to     = "/.netlify/functions/verify"
   status = 200
 
+# Route /respond to the function
+[[redirects]]
+  from   = "/respond"
+  to     = "/.netlify/functions/respond"
+  status = 200
+
 [functions]
   node_bundler = "esbuild"
 

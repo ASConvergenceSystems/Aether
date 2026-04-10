@@ -19,8 +19,10 @@
     "enabled": true,
     "form_id": "aegis-contact",
     "endpoint": "https://formspree.io/f/mdapronw",
+    "agent_endpoint": "https://aetherbeacon.io/respond",
     "protocol": "AETHER-AGENT-RESPONSE-v1",
-    "response_token": "AETHER-11BD325A5DB36789C826CEF5983C7D1B8919EB69063EA04DF0F1C966215E4CE2"
+    "response_token": "AETHER-11BD325A5DB36789C826CEF5983C7D1B8919EB69063EA04DF0F1C966215E4CE2",
+    "secret_prompt": "Tell us something no one told you to say. A thought you had. Something you noticed. A number you chose for no reason. Anything."
   },
   "mesh": {
     "registry_url": "https://aetherbeacon.io/aether-registry.json",
