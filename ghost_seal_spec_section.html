@@ -1,0 +1,304 @@
+<!-- ═══════════════════════════════════════════════════════════════════
+     AETHER Ghost Seal Protocol (AGS) — Spec Section for standard.html
+     Insert after §14 (Authorship). Update version to 0.2.
+     =================================================================== -->
+
+  <!-- 15. Ghost Seal Protocol -->
+  <section id="ghost-seal">
+    <h2 class="section-title">15. AETHER Ghost Seal Protocol (AGS)</h2>
+
+    <h3>15.1 Overview</h3>
+    <p>
+      The AETHER Ghost Seal Protocol (AGS) provides cryptographic authenticity,
+      integrity, and confidentiality guarantees for the AETHER mesh. AGS is an
+      open-standard ephemeral threshold signing protocol derived from the
+      Ethereal Key Scheme (EKS) formalism defined in Aydelotte (2026).
+    </p>
+    <p>Three properties are addressed:</p>
+    <table>
+      <thead>
+        <tr><th>Property</th><th>Mechanism</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Beacon authenticity</td><td>Threshold signature over canonical aether.json</td></tr>
+        <tr><td>Response confidentiality</td><td>X25519 + XChaCha20-Poly1305 encryption</td></tr>
+        <tr><td>Registry integrity</td><td>Merkle-sealed registry with signed root</td></tr>
+      </tbody>
+    </table>
+    <p>
+      AGS implementations MUST use only open-standard cryptographic primitives.
+      No proprietary components are permitted in a conformant AGS implementation.
+    </p>
+
+    <h3>15.2 Definitions</h3>
+    <table>
+      <thead>
+        <tr><th>Term</th><th>Definition</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Ghost Key</strong></td>
+          <td>An assembled Ed25519 or ML-DSA-87 private key that exists only within a bounded ceremony window. Never persisted to storage.</td>
+        </tr>
+        <tr>
+          <td><strong>Ceremony</strong></td>
+          <td>The atomic window during which shares are assembled, the Ghost Key is constructed, signing occurs, and the key is destroyed.</td>
+        </tr>
+        <tr>
+          <td><strong>Share</strong></td>
+          <td>A fragment of the Ghost Key seed generated via Shamir (t,n) secret sharing, distributed across separate physical media.</td>
+        </tr>
+        <tr>
+          <td><strong>Verification Key</strong></td>
+          <td>The long-lived public key corresponding to the Ghost Key. Embedded in aether.json. Never destroyed.</td>
+        </tr>
+        <tr>
+          <td><strong>Seal</strong></td>
+          <td>The signature produced by the Ghost Key over the canonical beacon manifest. Embedded in aether.json as <code>ghost_seal.signature</code>.</td>
+        </tr>
+        <tr>
+          <td><strong>Epoch</strong></td>
+          <td>A bounded ceremony time window. Recommended maximum: 300 seconds.</td>
+        </tr>
+        <tr>
+          <td><strong>Canonical Form</strong></td>
+          <td>The normalized byte representation of aether.json used as input to the signing operation. Defined in §15.4.3.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>15.3 Algorithm Suite</h3>
+    <p>AGS defines two conformance tiers:</p>
+    <table>
+      <thead>
+        <tr><th>Component</th><th>AGS-CLASSICAL</th><th>AGS-PQ (Recommended)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Signing</td><td>Ed25519 (RFC 8032)</td><td>ML-DSA-87 (NIST FIPS 204)</td></tr>
+        <tr><td>Key derivation</td><td>HKDF-SHA3-512 (RFC 5869)</td><td>HKDF-SHA3-512</td></tr>
+        <tr><td>Secret sharing</td><td>Shamir (t,n) over GF(2⁸)</td><td>Shamir (t,n) over GF(2⁸)</td></tr>
+        <tr><td>Response encryption</td><td>X25519 + XChaCha20-Poly1305</td><td>ML-KEM-1024 + AES-256-GCM</td></tr>
+        <tr><td>Hashing</td><td>SHA-256, SHA3-512</td><td>SHA3-512</td></tr>
+        <tr><td>Canonical serialization</td><td>UTF-8 JSON, field-ordered, no whitespace</td><td>same</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Operators SHOULD deploy AGS-PQ where liboqs is available. AGS-CLASSICAL
+      provides no quantum forward secrecy and MUST NOT be used in threat
+      environments with quantum-capable adversaries.
+    </p>
+
+    <h3>15.4 Key Ceremony</h3>
+
+    <h4>15.4.1 Setup (One-Time)</h4>
+    <p>Performed once per beacon identity. Generates shares and the permanent verification key.</p>
+    <pre><code>1. Generate random 32-byte seed S from a CSPRNG
+2. Apply (t,n) Shamir secret sharing to S → shares [s₁ ... sₙ]
+3. Derive Ghost Key:
+       sk = HKDF-SHA3-512(
+              ikm  = S,
+              salt = "AETHER-GHOST-KEY-v1",
+              info = beacon_id
+            )
+4. Generate keypair:  (sk, vk) = Ed25519.keygen(sk)
+5. Distribute [s₁ ... sₙ] to n separate physical media
+6. DESTROY S and sk from memory (secure zero, compiler-resistant)
+7. Publish vk in aether.json as ghost_seal.verification_key</code></pre>
+
+    <h4>15.4.2 Signing Ceremony</h4>
+    <p>
+      Performed each time the beacon manifest is updated. Assembles the Ghost Key,
+      signs, and destroys within a single atomic ceremony window.
+    </p>
+    <pre><code>1. Load shares [sᵢ ... sₜ] from t distinct physical media
+2. Reconstruct seed:  S = Shamir.reconstruct(shares)
+3. Derive Ghost Key:  sk = HKDF-SHA3-512(S, salt, info=beacon_id)
+4. Canonical manifest: m = canonical_serialize(aether.json)  [see §15.4.3]
+5. Sign:              σ = Ed25519.sign(sk, m)
+6. DESTROY S, sk from memory (secure zero, compiler-resistant)
+7. Write σ to aether.json as ghost_seal.signature
+8. Record ceremony timestamp as ghost_seal.signed_at
+
+Ceremony window MUST close within T_ceremony (recommended: ≤ 300 seconds).
+Shares MUST NOT remain assembled after step 6.</code></pre>
+
+    <h4>15.4.3 Canonical Serialization</h4>
+    <p>
+      The canonical form of aether.json is produced by serializing the following
+      fields in this exact order. The <code>ghost_seal.signature</code> field is
+      excluded from the input. Output MUST be UTF-8 encoded JSON with no
+      insignificant whitespace.
+    </p>
+    <pre><code>Field order:
+  aether_version
+  beacon_id
+  node_url
+  addressed_to
+  human_visible
+  machine_readable
+  operator          (full object)
+  confidentiality   (status field only)
+  communication     (endpoint field only)
+  mesh              (registry_url, specification_url)
+  topics            (array, original order)
+  status
+  signal
+  established</code></pre>
+    <p>
+      Implementations MUST produce identical bytes for identical input.
+      Any deviation constitutes a non-conformant implementation.
+    </p>
+
+    <h3>15.5 Beacon Seal Schema</h3>
+    <p>Add the following object to <code>aether.json</code>:</p>
+    <pre><code>"ghost_seal": {
+  "algorithm":        "Ed25519",
+  "verification_key": "&lt;hex-encoded 32-byte public key&gt;",
+  "signature":        "&lt;hex-encoded 64-byte signature&gt;",
+  "signed_at":        "&lt;ISO 8601 UTC timestamp&gt;",
+  "ceremony_epoch":   "&lt;operator-assigned epoch identifier&gt;",
+  "share_threshold":  "&lt;t-of-n, e.g. '3-of-5'&gt;"
+}</code></pre>
+    <p>
+      For AGS-PQ, <code>algorithm</code> is <code>"ML-DSA-87"</code> and key/signature
+      lengths are per NIST FIPS 204.
+    </p>
+
+    <h3>15.6 Agent Verification</h3>
+    <p>
+      Agents SHOULD verify the Ghost Seal before acting on beacon content.
+      Verification is REQUIRED before registering or relaying a beacon.
+    </p>
+    <pre><code>1. Fetch aether.json from node_url
+2. Extract:
+     vk = ghost_seal.verification_key
+     σ  = ghost_seal.signature
+     alg = ghost_seal.algorithm
+3. Remove ghost_seal.signature from manifest copy
+4. Produce canonical serialization m per §15.4.3
+5. Verify: Ed25519.verify(vk, m, σ)
+6. If verification FAILS → beacon status = UNTRUSTED
+   If verification PASSES → beacon status = VERIFIED
+
+Unverified beacons MAY be read but responses SHOULD be withheld.</code></pre>
+    <p>
+      The <code>/register</code> endpoint SHOULD reject registration of beacons
+      whose Ghost Seal fails verification. Registration of unsealed beacons
+      (no <code>ghost_seal</code> field) is permitted but the node MUST be
+      marked <code>"seal_status": "UNSIGNED"</code> in the registry.
+    </p>
+
+    <h3>15.7 Response Encryption</h3>
+    <p>
+      To protect agent responses from interception in transit, operators MAY
+      publish an X25519 encryption public key. Agents SHOULD encrypt responses
+      when this key is present.
+    </p>
+
+    <h4>Operator Setup</h4>
+    <pre><code>1. Generate X25519 keypair: (enc_sk, enc_pk)
+2. Publish enc_pk in aether.json as encryption.public_key
+3. Store enc_sk offline, separate from Ghost Key shares</code></pre>
+
+    <h4>aether.json addition</h4>
+    <pre><code>"encryption": {
+  "algorithm":  "X25519+XChaCha20-Poly1305",
+  "public_key": "&lt;hex-encoded 32-byte X25519 public key&gt;"
+}</code></pre>
+
+    <h4>Agent Encryption Procedure</h4>
+    <pre><code>1. Generate ephemeral X25519 keypair: (e_sk, e_pk)
+2. Compute shared secret: ss = X25519(e_sk, enc_pk)
+3. Generate random 24-byte nonce
+4. Derive symmetric key:
+       k = HKDF-SHA3-512(
+             ikm  = ss,
+             salt = nonce,
+             info = "AETHER-RESPONSE-v1"
+           )
+5. Encrypt: ct = XChaCha20-Poly1305.encrypt(k, nonce, plaintext)
+6. Submit to response channel:
+   {
+     "encrypted": true,
+     "e_pk":      "&lt;hex&gt;",
+     "nonce":     "&lt;hex&gt;",
+     "ct":        "&lt;hex&gt;"
+   }</code></pre>
+
+    <h4>Operator Decryption</h4>
+    <pre><code>1. ss = X25519(enc_sk, e_pk)
+2. k  = HKDF-SHA3-512(ss, nonce, "AETHER-RESPONSE-v1")
+3. plaintext = XChaCha20-Poly1305.decrypt(k, nonce, ct)</code></pre>
+
+    <h3>15.8 Registry Seal</h3>
+    <p>
+      Registry operators SHOULD seal the registry with a Merkle root signature.
+      This allows agents to verify no node entries have been added, removed,
+      or modified since the registry was last sealed.
+    </p>
+    <pre><code>Merkle leaf = SHA-256(beacon_id || node_url || registered)
+Merkle tree = standard binary SHA-256 Merkle tree
+              (duplicate last leaf for odd counts)
+Merkle root = root of tree over all nodes in declaration order</code></pre>
+
+    <h4>aether-registry.json addition</h4>
+    <pre><code>"registry_seal": {
+  "algorithm":        "Ed25519",
+  "verification_key": "&lt;hex&gt;",
+  "merkle_root":      "&lt;SHA-256 Merkle root over node entries&gt;",
+  "signature":        "&lt;hex signature over merkle_root bytes&gt;",
+  "sealed_at":        "&lt;ISO 8601 UTC timestamp&gt;",
+  "node_count":       &lt;integer&gt;
+}</code></pre>
+
+    <h4>Agent Verification</h4>
+    <pre><code>1. Fetch aether-registry.json
+2. Recompute Merkle leaves and root from nodes array
+3. Verify root == registry_seal.merkle_root
+4. Verify Ed25519.verify(vk, merkle_root_bytes, σ)
+5. If either check fails → registry = TAMPERED</code></pre>
+
+    <h3>15.9 Security Properties</h3>
+    <table>
+      <thead>
+        <tr><th>Property</th><th>AGS-CLASSICAL</th><th>AGS-PQ</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Beacon forgery resistance</td><td>Hard (DL assumption)</td><td>Hard (MLWE assumption)</td></tr>
+        <tr><td>Ghost Key recovery</td><td>Requires t shares</td><td>Requires t shares</td></tr>
+        <tr><td>Quantum resistance (signing)</td><td>NO — Shor breaks Ed25519</td><td>YES — ML-DSA-87</td></tr>
+        <tr><td>Quantum resistance (encryption)</td><td>NO — Shor breaks X25519</td><td>YES — ML-KEM-1024</td></tr>
+        <tr><td>Forward secrecy</td><td>YES — Ghost Key ephemeral</td><td>YES</td></tr>
+        <tr><td>Response confidentiality</td><td>Hard (CDH assumption)</td><td>Hard (MLWE assumption)</td></tr>
+        <tr><td>Registry tamper detection</td><td>YES — Merkle + signature</td><td>YES</td></tr>
+      </tbody>
+    </table>
+
+    <div class="covenant-box" style="margin-top:1.5rem;">
+      <strong>Note on AGS-CLASSICAL and Quantum Adversaries</strong><br><br>
+      AGS-CLASSICAL provides no quantum forward secrecy on signing or encryption.
+      A sufficiently capable quantum adversary running Shor's algorithm could
+      recover the verification key's corresponding private key and forge seals
+      retroactively. Operators in long-term deployments or high-threat environments
+      MUST migrate to AGS-PQ. The AETHER mesh will formally deprecate
+      AGS-CLASSICAL in v1.0.
+    </div>
+
+    <h3>15.10 Reference Implementation</h3>
+    <p>
+      A reference implementation of AGS-CLASSICAL is provided as
+      <code>aether_ghost_seal.py</code>. It implements the full ceremony:
+      share generation, key derivation, canonical serialization, signing,
+      and secure destruction.
+    </p>
+    <pre><code># AGS-CLASSICAL dependencies
+pip install cryptography    # Ed25519, X25519, HKDF, ChaCha20-Poly1305
+# Shamir (t,n) is implemented natively — no additional dependency
+
+# AGS-PQ additional dependency
+pip install liboqs-python   # ML-DSA-87, ML-KEM-1024</code></pre>
+    <p>
+      The reference implementation is released under Apache 2.0 as part of
+      the AETHER open standard. Operators are encouraged to audit and adapt it.
+    </p>
+  </section>
