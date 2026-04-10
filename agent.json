@@ -50,8 +50,8 @@
       "requirements": [
         "Serve aether.json at {node_url}/aether.json with fields: aether_version, beacon_id, node_url, status=ACTIVE",
         "node_url in aether.json must match the submitted URL",
-        "Web beacons (HTML root): include AETHER_BEACON_BEGIN marker in page HTML",
-        "Non-web beacons (API/agent/JSON root): aether.json alone is sufficient — HTML marker not required"
+        "If your beacon root serves HTML: include the AETHER_BEACON_BEGIN marker in the page",
+        "If your beacon is a pure API or autonomous agent: aether.json is the complete conformance artifact"
       ],
       "on_success": "Returns REGISTERED status + starter_registry JSON ready to self-host"
     },
@@ -140,7 +140,8 @@
     "ghost_seal_tool": "aether_ghost_seal.py — setup, ceremony, verify, keygen-encryption commands",
     "conformance_checklist": [
       "aether.json served at domain root with all required fields",
-      "Web beacons: AETHER_BEACON_BEGIN marker present in HTML — Non-web beacons: not required",
+      "Web beacons: include AETHER_BEACON_BEGIN marker in page HTML",
+      "Pure API or autonomous agent beacons: aether.json is the complete conformance artifact",
       "ghost_seal block present with valid Ed25519 signature",
       "node_url in manifest matches actual serving URL",
       "status field set to ACTIVE"
