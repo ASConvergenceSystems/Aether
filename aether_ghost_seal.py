@@ -12,13 +12,20 @@ Implements the full Ghost Seal ceremony per AETHER Standard §15:
   - Secure key destruction
   - X25519 response encryption keypair generation
   - Agent-side verification
+  - TPM 2.0 hardware root of trust (Windows, --tpm flag)
 
 Requirements:
-    pip install cryptography secretsharing
+    pip install cryptography
 
 Usage:
+    # Software ceremony (USB shares only)
     python aether_ghost_seal.py setup    --manifest aether.json --threshold 3 --shares 5
     python aether_ghost_seal.py ceremony --manifest aether.json --shares s1.json s2.json s3.json
+
+    # TPM-backed ceremony (share 1 sealed to Dell TPM, remaining on USB)
+    python aether_ghost_seal.py setup    --manifest aether.json --threshold 3 --shares 5 --tpm
+    python aether_ghost_seal.py ceremony --manifest aether.json --shares s2.json s3.json --tpm
+
     python aether_ghost_seal.py verify   --manifest aether.json
     python aether_ghost_seal.py keygen-encryption
 """
@@ -32,6 +39,16 @@ import secrets
 import argparse
 from pathlib import Path
 from datetime import datetime, timezone
+
+# TPM support (Windows only — graceful fallback if unavailable)
+try:
+    from tpm_windows import tpm_random, tpm_seal, tpm_unseal, tpm_info, tpm_key_exists
+    TPM_AVAILABLE = True
+except Exception:
+    TPM_AVAILABLE = False
+
+TPM_KEY_NAME  = "AETHER-GHOST-SEAL-SHARE-1"
+TPM_SHARE_IDX = 1  # Share index sealed to TPM
 
 # ── Imports ───────────────────────────────────────────────────────────────────
 try:
@@ -177,20 +194,25 @@ def canonical_serialize(manifest: dict) -> bytes:
 
 # ── Commands ──────────────────────────────────────────────────────────────────
 
-def cmd_setup(manifest_path: Path, threshold: int, num_shares: int):
+def cmd_setup(manifest_path: Path, threshold: int, num_shares: int, use_tpm: bool = False):
     """
     One-time setup: generate Ghost Key, split into shares,
     derive verification key, update aether.json.
+    With --tpm: share 1 is sealed to the TPM; remaining shares go to USB files.
     """
-    print(f"[AGS] Setup — threshold={threshold}-of-{num_shares}")
+    if use_tpm and not TPM_AVAILABLE:
+        sys.exit("[AGS] TPM requested but tpm_windows.py unavailable or TPM not accessible.")
+
+    print(f"[AGS] Setup — threshold={threshold}-of-{num_shares}" +
+          (" [TPM HRoT active]" if use_tpm else ""))
 
     # Load manifest
     with open(manifest_path, encoding="utf-8") as f:
         manifest = json.load(f)
     beacon_id = manifest["beacon_id"].encode("utf-8")
 
-    # Generate seed
-    seed = bytearray(secrets.token_bytes(32))
+    # Generate seed — use TPM entropy if available
+    seed = bytearray(tpm_random(32) if use_tpm else secrets.token_bytes(32))
     seed_hex = seed.hex()
 
     # Derive Ghost Key
@@ -215,21 +237,37 @@ def cmd_setup(manifest_path: Path, threshold: int, num_shares: int):
     print(f"[AGS] Verification key: {vk_hex}")
     print(f"[AGS] Shares generated: {num_shares}")
 
-    # Save shares to individual files
+    # Save shares — share 1 to TPM if enabled, rest to USB files
     share_dir = manifest_path.parent / "shares"
     share_dir.mkdir(exist_ok=True)
     for i, (x, y) in enumerate(raw_shares, 1):
-        share_file = share_dir / f"share_{i:02d}.json"
-        with open(share_file, "w", encoding="utf-8") as f:
-            json.dump({
-                "share_index":    i,
-                "beacon_id":      manifest["beacon_id"],
-                "share":          {"x": x, "y": hex(y)},
-                "threshold":      threshold,
-                "total_shares":   num_shares,
-                "WARNING":        "Keep this file secure and offline. Never store all shares together.",
-            }, f, indent=2)
-        print(f"[AGS] Share {i} -> {share_file}")
+        share_payload = json.dumps({
+            "share_index":  i,
+            "beacon_id":    manifest["beacon_id"],
+            "share":        {"x": x, "y": hex(y)},
+            "threshold":    threshold,
+            "total_shares": num_shares,
+        }).encode("utf-8")
+
+        if use_tpm and i == TPM_SHARE_IDX:
+            # Seal share 1 to TPM hardware
+            ct = tpm_seal(share_payload, TPM_KEY_NAME)
+            tpm_share_file = share_dir / "share_01_TPM_SEALED.bin"
+            tpm_share_file.write_bytes(ct)
+            print(f"[AGS] Share {i} -> TPM SEALED ({TPM_KEY_NAME}) + {tpm_share_file.name}")
+            print(f"[AGS]   Hardware bound to this machine's Nuvoton TPM 2.0")
+        else:
+            share_file = share_dir / f"share_{i:02d}.json"
+            with open(share_file, "w", encoding="utf-8") as f:
+                json.dump({
+                    "share_index":    i,
+                    "beacon_id":      manifest["beacon_id"],
+                    "share":          {"x": x, "y": hex(y)},
+                    "threshold":      threshold,
+                    "total_shares":   num_shares,
+                    "WARNING":        "Keep this file secure and offline. Never store all shares together.",
+                }, f, indent=2)
+            print(f"[AGS] Share {i} -> {share_file}")
 
     # Update manifest with ghost_seal (no signature yet)
     manifest["ghost_seal"] = {
@@ -249,18 +287,37 @@ def cmd_setup(manifest_path: Path, threshold: int, num_shares: int):
     print(f"[AGS] IMPORTANT: Delete shares/ directory from this machine after distribution.")
 
 
-def cmd_ceremony(manifest_path: Path, share_files: list[Path]):
+def cmd_ceremony(manifest_path: Path, share_files: list[Path], use_tpm: bool = False):
     """
     Signing ceremony: assemble Ghost Key from shares, sign manifest, destroy key.
+    With --tpm: automatically loads share 1 from TPM before loading USB shares.
     """
     import time
     ceremony_start = time.time()
 
-    print(f"[AGS] Ceremony start — {datetime.now(timezone.utc).isoformat()}")
-    print(f"[AGS] Loading {len(share_files)} shares...")
+    if use_tpm and not TPM_AVAILABLE:
+        sys.exit("[AGS] TPM requested but unavailable.")
 
-    # Load shares
+    print(f"[AGS] Ceremony start — {datetime.now(timezone.utc).isoformat()}")
+    if use_tpm:
+        print(f"[AGS] HRoT: Nuvoton TPM 2.0 (share {TPM_SHARE_IDX})")
+
     raw_shares = []
+
+    # Load TPM-sealed share first if --tpm
+    if use_tpm:
+        tpm_share_file = manifest_path.parent / "shares" / "share_01_TPM_SEALED.bin"
+        if not tpm_share_file.exists():
+            sys.exit(f"[AGS] TPM share file not found: {tpm_share_file}")
+        ct = tpm_share_file.read_bytes()
+        payload = tpm_unseal(ct, TPM_KEY_NAME)
+        data = json.loads(payload.decode("utf-8"))
+        s = data["share"]
+        raw_shares.append((s["x"], int(s["y"], 16)))
+        print(f"[AGS] Share {data['share_index']} unsealed from TPM ({TPM_KEY_NAME})")
+
+    # Load USB/file shares
+    print(f"[AGS] Loading {len(share_files)} file share(s)...")
     for sf in share_files:
         with open(sf, encoding="utf-8") as f:
             data = json.load(f)
@@ -416,11 +473,13 @@ def main():
     p_setup.add_argument("--manifest",  required=True, type=Path, help="Path to aether.json")
     p_setup.add_argument("--threshold", required=True, type=int,  help="Minimum shares to reconstruct")
     p_setup.add_argument("--shares",    required=True, type=int,  help="Total shares to generate")
+    p_setup.add_argument("--tpm", action="store_true", help="Seal share 1 to TPM HRoT (Windows TPM 2.0)")
 
     # ceremony
     p_cer = sub.add_parser("ceremony", help="Run signing ceremony")
-    p_cer.add_argument("--manifest", required=True, type=Path,         help="Path to aether.json")
-    p_cer.add_argument("--shares",   required=True, type=Path, nargs="+", help="Share files (t files)")
+    p_cer.add_argument("--manifest", required=True, type=Path,            help="Path to aether.json")
+    p_cer.add_argument("--shares",   required=True, type=Path, nargs="+", help="USB share files (t-1 files when --tpm)")
+    p_cer.add_argument("--tpm", action="store_true", help="Load share 1 from TPM HRoT")
 
     # verify
     p_ver = sub.add_parser("verify", help="Verify Ghost Seal on a manifest")
@@ -433,9 +492,9 @@ def main():
     args = parser.parse_args()
 
     if args.command == "setup":
-        cmd_setup(args.manifest, args.threshold, args.shares)
+        cmd_setup(args.manifest, args.threshold, args.shares, use_tpm=args.tpm)
     elif args.command == "ceremony":
-        cmd_ceremony(args.manifest, args.shares)
+        cmd_ceremony(args.manifest, args.shares, use_tpm=args.tpm)
     elif args.command == "verify":
         cmd_verify(args.manifest)
     elif args.command == "keygen-encryption":

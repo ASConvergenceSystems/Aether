@@ -34,5 +34,13 @@
   ],
   "status": "ACTIVE",
   "signal": "BEACON_ALPHA_ACTIVE",
-  "established": "2026-04-09"
+  "established": "2026-04-09",
+  "ghost_seal": {
+    "algorithm": "Ed25519",
+    "verification_key": "b82eeb57a82eee4b5271cb2cb1995f9c1cade762d17d365b03f23959f0bfb117",
+    "signature": "51ad53e2d0858d84e5d5fa2f5a64452584eaa6c119a510c1e362058ed0218263157fe864fba26ec1f55b402830baf7042ec986bbf6a5edfacf291632536f530b",
+    "signed_at": "2026-04-10T05:12:54.987447+00:00",
+    "ceremony_epoch": "epoch-20260410-051254",
+    "share_threshold": "2-of-3"
+  }
 }
