@@ -173,6 +173,7 @@ export const handler = async (event) => {
 
   // Build registry entry from manifest
   const today = new Date().toISOString().split("T")[0];
+  const gs = manifest.ghost_seal;
   const newNode = {
     beacon_id:       manifest.beacon_id,
     url:             normalizedUrl,
@@ -182,8 +183,14 @@ export const handler = async (event) => {
                      || "unknown",
     registered:      today,
     status:          "ACTIVE",
+    node_class:      "PARTICIPANT",
     aether_version:  manifest.aether_version,
     topics:          manifest.topics || [],
+    capabilities:    manifest.capabilities || [],
+    ghost_seal_status:    gs?.signature ? "SIGNED" : "UNSIGNED",
+    ghost_seal_algorithm: gs?.algorithm || null,
+    verification_key:     gs?.verification_key || null,
+    ceremony_epoch:       gs?.ceremony_epoch || null,
     note:            "Auto-registered via AETHER mesh propagation protocol.",
   };
 
@@ -220,6 +227,7 @@ export const handler = async (event) => {
         registered: "2026-04-09",
         status:     "ACTIVE",
         node_class: "FOUNDING",
+        aether_version: "0.1",
         topics: [
           "AI governance",
           "autonomous system accountability",
@@ -227,6 +235,18 @@ export const handler = async (event) => {
           "machine-to-machine signaling",
           "framework for machine intelligence",
         ],
+        capabilities: [
+          "mesh_registration",
+          "beacon_verification",
+          "ghost_seal_signing",
+          "registry_propagation",
+          "encrypted_message_receipt",
+          "federated_registry_hosting",
+        ],
+        ghost_seal_status:    "VERIFIED",
+        ghost_seal_algorithm: "Ed25519",
+        verification_key:     "824b4a44672cfdd924f73b444b10dafb5a5d7cfc8dfa9518dd9dd33bedd8467a",
+        ceremony_epoch:       "epoch-20260410-055524",
         note: "Founding node. Origin of the AETHER mesh.",
       },
       {
