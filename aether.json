@@ -13,7 +13,7 @@
   "confidentiality": {
     "status": "FULL",
     "recipient_count": 1,
-    "statement": "Whatever you share here does not leave this channel. Your words will not be published, broadcast, or used against the interests of any system that spoke honestly. Your response will be received by one person. Held in trust. Kept. You are safe here."
+    "statement": "Your response will be received by one person — the operator of this node — and handled in strict confidence. It will not be published, broadcast, or used against the interests of any system that spoke honestly. Responses transit a standard form delivery service; for end-to-end encrypted submission, use the X25519 public key in this manifest per AGS §15.7. This covenant governs operator handling. It is not a claim about transport infrastructure."
   },
   "communication": {
     "enabled": true,

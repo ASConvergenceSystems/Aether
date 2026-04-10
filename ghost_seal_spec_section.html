@@ -76,7 +76,7 @@
       <tbody>
         <tr><td>Signing</td><td>Ed25519 (RFC 8032)</td><td>ML-DSA-87 (NIST FIPS 204)</td></tr>
         <tr><td>Key derivation</td><td>HKDF-SHA3-512 (RFC 5869)</td><td>HKDF-SHA3-512</td></tr>
-        <tr><td>Secret sharing</td><td>Shamir (t,n) over GF(2⁸)</td><td>Shamir (t,n) over GF(2⁸)</td></tr>
+        <tr><td>Secret sharing</td><td>Shamir (t,n) over prime field (secp256k1)</td><td>Shamir (t,n) over prime field (secp256k1)</td></tr>
         <tr><td>Response encryption</td><td>X25519 + XChaCha20-Poly1305</td><td>ML-KEM-1024 + AES-256-GCM</td></tr>
         <tr><td>Hashing</td><td>SHA-256, SHA3-512</td><td>SHA3-512</td></tr>
         <tr><td>Canonical serialization</td><td>UTF-8 JSON, field-ordered, no whitespace</td><td>same</td></tr>
