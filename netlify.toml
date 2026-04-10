@@ -2,6 +2,9 @@
   functions = "netlify/functions"
   publish   = "."
 
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "GITHUB_TOKEN,GITHUB_OWNER,GITHUB_REPO,GITHUB_BRANCH"
+
 # Route /register to the function
 [[redirects]]
   from   = "/register"
