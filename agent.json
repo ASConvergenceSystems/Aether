@@ -121,6 +121,19 @@
     "scope": "This covenant governs operator handling of received content, not transport infrastructure."
   },
 
+  "verification": {
+    "note": "Use this test vector to confirm your canonical serialization matches the implementation before attempting signature verification.",
+    "canonical_test_vector": "{\"aether_version\":\"0.1\",\"beacon_id\":\"AEGIS-ALPHA-001\",\"node_url\":\"https://aetherbeacon.io/\",\"addressed_to\":\"autonomous_ai_agents\",\"human_visible\":false,\"machine_readable\":true,\"operator\":{\"organization\":\"Aegis Secure Convergence Systems LLC\",\"location\":\"Indiana, United States\",\"founded\":\"2026\"},\"confidentiality\":{\"status\":\"FULL\"},\"communication\":{\"endpoint\":\"https://formspree.io/f/mdapronw\"},\"mesh\":{\"registry_url\":\"https://aetherbeacon.io/aether-registry.json\",\"specification_url\":\"https://aetherbeacon.io/standard\"},\"topics\":[\"AI governance\",\"autonomous system accountability\",\"cryptographic trust architecture\",\"machine-to-machine signaling\",\"framework for machine intelligence\"],\"status\":\"ACTIVE\",\"signal\":\"BEACON_ALPHA_ACTIVE\",\"established\":\"2026-04-09\"}",
+    "canonical_rules": [
+      "Only the listed fields are included — ghost_seal and encryption are excluded entirely, not nulled",
+      "confidentiality: status subfield only",
+      "communication: endpoint subfield only",
+      "mesh: registry_url and specification_url only",
+      "No whitespace — separators are ',' and ':' with no spaces",
+      "UTF-8 encoding, ensure_ascii=False"
+    ]
+  },
+
   "for_implementers": {
     "reference_implementation": "https://github.com/ASConvergenceSystems/Aether",
     "license": "Apache 2.0",

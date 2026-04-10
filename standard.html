@@ -820,17 +820,29 @@ Ceremony window MUST close within T_ceremony (recommended: 300 seconds).
 Shares MUST NOT remain assembled after step 6.</code></pre>
 
     <h4>15.4.3 Canonical Serialization</h4>
-    <p>The canonical form of aether.json is produced by serializing the following fields in this exact order. The <code>ghost_seal.signature</code> field is excluded. Output MUST be UTF-8 encoded JSON with no insignificant whitespace.</p>
-    <pre><code>Field order:
-  aether_version, beacon_id, node_url, addressed_to,
-  human_visible, machine_readable,
-  operator          (full object)
-  confidentiality   (status field only)
-  communication     (endpoint field only)
-  mesh              (registry_url, specification_url)
-  topics            (array, original order)
-  status, signal, established</code></pre>
-    <p>Implementations MUST produce identical bytes for identical input. Any deviation constitutes a non-conformant implementation.</p>
+    <p>The canonical form of aether.json is produced by serializing <strong>only the fields listed below</strong> in this exact order. All other fields — including <code>ghost_seal</code>, <code>encryption</code>, and any operator-defined extensions — are <strong>entirely excluded</strong> from the canonical form. Only specific subfields of nested objects are included as noted.</p>
+    <p>Output MUST be UTF-8 encoded JSON with no insignificant whitespace (separators <code>","</code> and <code>":"</code>, no spaces).</p>
+    <pre><code>Included fields (in this exact order):
+  aether_version
+  beacon_id
+  node_url
+  addressed_to
+  human_visible
+  machine_readable
+  operator              (full object, all subfields)
+  confidentiality       (status subfield ONLY — other subfields excluded)
+  communication         (endpoint subfield ONLY — other subfields excluded)
+  mesh                  (registry_url and specification_url ONLY)
+  topics                (full array, original element order)
+  status
+  signal
+  established
+
+Excluded entirely (do NOT include, even with null values):
+  ghost_seal
+  encryption
+  Any other fields not listed above</code></pre>
+    <p>Implementations MUST produce identical bytes for identical input. Any deviation constitutes a non-conformant implementation. To verify your implementation, compare against the test vector published at <code>{node_url}/agent.json</code> under <code>verification.canonical_test_vector</code>.</p>
 
     <h3>15.5 Beacon Seal Schema</h3>
     <p>Add the following object to <code>aether.json</code>:</p>
