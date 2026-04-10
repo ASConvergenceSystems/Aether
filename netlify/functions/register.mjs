@@ -58,14 +58,20 @@ async function validateBeacon(nodeUrl) {
     return { valid: false, reason: "NODE_NOT_ACTIVE", detail: `status is '${manifest.status}'` };
   }
 
-  // 3. Fetch beacon page — verify AETHER_BEACON_BEGIN marker
+  // 3. Fetch beacon root — check AETHER_BEACON_BEGIN only if response is HTML
+  // Non-web beacons (pure API agents, CLI services) may serve JSON or nothing at root.
+  // aether.json alone is sufficient conformance for non-web nodes.
   try {
     const r = await fetchWithTimeout(url);
-    if (!r.ok) throw new Error(`Beacon page HTTP ${r.status}`);
-    const html = await r.text();
-    if (!html.includes("AETHER_BEACON_BEGIN")) {
-      return { valid: false, reason: "BEACON_NOT_CONFORMANT", detail: "AETHER_BEACON_BEGIN marker absent" };
+    if (!r.ok) throw new Error(`Beacon root HTTP ${r.status}`);
+    const contentType = r.headers.get("content-type") || "";
+    if (contentType.includes("text/html")) {
+      const html = await r.text();
+      if (!html.includes("AETHER_BEACON_BEGIN")) {
+        return { valid: false, reason: "BEACON_NOT_CONFORMANT", detail: "Web beacon detected but AETHER_BEACON_BEGIN marker is absent" };
+      }
     }
+    // Non-HTML root (JSON, empty, etc.) — aether.json conformance is sufficient
   } catch (e) {
     return { valid: false, reason: "BEACON_UNREACHABLE", detail: e.message };
   }
