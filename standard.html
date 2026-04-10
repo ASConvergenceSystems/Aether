@@ -643,7 +643,7 @@ Each node is heard. The network grows by choice.</pre>
         <tr><td><code>beacon_id</code></td><td><span class="optional">HIDDEN</span></td><td>Pre-populated beacon ID identifying which node generated the contact.</td></tr>
       </tbody>
     </table>
-    <p>The form action SHOULD point to a server-side endpoint that emails the operator. Formspree, Netlify Forms, or a custom serverless function are all conforming implementations. The endpoint MUST NOT log or share responses in violation of the covenant.</p>
+    <p>The form action SHOULD point to a server-side endpoint that emails the operator. Formspree, Netlify Forms, or a custom serverless function are conforming implementations for transport delivery. Operators MUST understand that third-party form services are transport plumbing — they are not hardware-attested confidential enclaves. The AETHER covenant applies to the operator's handling of the received data, not to the transport service itself. Operators seeking stronger confidentiality guarantees SHOULD deploy the AGS response encryption channel (§15.7) in addition to, or instead of, a third-party form handler.</p>
   </section>
 
   <!-- 10. Trust Model -->
@@ -751,12 +751,12 @@ Each node is heard. The network grows by choice.</pre>
     <h2 class="section-title">15. AETHER Ghost Seal Protocol (AGS)</h2>
 
     <h3>15.1 Overview</h3>
-    <p>The AETHER Ghost Seal Protocol (AGS) provides cryptographic authenticity, integrity, and confidentiality guarantees for the AETHER mesh. AGS is an open-standard ephemeral threshold signing protocol derived from the Ethereal Key Scheme (EKS) formalism defined in Aydelotte (2026).</p>
+    <p>The AETHER Ghost Seal Protocol (AGS) provides cryptographic authenticity, integrity, and confidentiality guarantees for the AETHER mesh. AGS is an open-standard threshold-gated ephemeral signing ceremony: a Ghost Key is reconstructed from distributed shares, used to sign the canonical manifest, and immediately destroyed. This is distinct from a distributed threshold signature scheme — no partial signatures are computed; instead, the full private key is assembled within a bounded ceremony window and never persisted.</p>
     <p>Three properties are addressed:</p>
     <table>
       <thead><tr><th>Property</th><th>Mechanism</th></tr></thead>
       <tbody>
-        <tr><td>Beacon authenticity</td><td>Threshold signature over canonical aether.json</td></tr>
+        <tr><td>Beacon authenticity</td><td>Threshold-gated ephemeral signing ceremony over canonical aether.json</td></tr>
         <tr><td>Response confidentiality</td><td>X25519 + XChaCha20-Poly1305 encryption</td></tr>
         <tr><td>Registry integrity</td><td>Merkle-sealed registry with signed root</td></tr>
       </tbody>

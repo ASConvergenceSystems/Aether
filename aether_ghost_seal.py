@@ -142,7 +142,7 @@ def hkdf_sha3_512(ikm: bytes, salt: bytes, info: bytes, length: int = 32) -> byt
     Returns a bytearray for secure zeroing after use.
     """
     hkdf = HKDF(
-        algorithm=hashes.SHA512(),  # cryptography library SHA3-512 via SHA512
+        algorithm=hashes.SHA3_512(),
         length=length,
         salt=salt,
         info=info,

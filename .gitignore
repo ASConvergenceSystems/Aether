@@ -1,6 +1,10 @@
 # Don't commit the PDF — standard.html is the deployed version
 standard.pdf
 
+# AGS private key — keep offline, never commit
+encryption_sk.json
+shares/
+
 # Node
 node_modules/
 

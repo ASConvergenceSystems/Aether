@@ -5,4 +5,5 @@ ghost_seal_spec_section.html
 standard.pdf
 __pycache__/
 shares/
+encryption_sk.json
 *.json.bak

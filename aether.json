@@ -35,12 +35,16 @@
   "status": "ACTIVE",
   "signal": "BEACON_ALPHA_ACTIVE",
   "established": "2026-04-09",
+  "encryption": {
+    "algorithm": "X25519+XChaCha20-Poly1305",
+    "public_key": "9bd9468acc2116bc49e6cfe7858dc6cac26e7494a47bd5c59a07a2ea96ee162d"
+  },
   "ghost_seal": {
     "algorithm": "Ed25519",
-    "verification_key": "b82eeb57a82eee4b5271cb2cb1995f9c1cade762d17d365b03f23959f0bfb117",
-    "signature": "51ad53e2d0858d84e5d5fa2f5a64452584eaa6c119a510c1e362058ed0218263157fe864fba26ec1f55b402830baf7042ec986bbf6a5edfacf291632536f530b",
-    "signed_at": "2026-04-10T05:12:54.987447+00:00",
-    "ceremony_epoch": "epoch-20260410-051254",
+    "verification_key": "824b4a44672cfdd924f73b444b10dafb5a5d7cfc8dfa9518dd9dd33bedd8467a",
+    "signature": "27e4ad32fab0d4de712e619ad121b3592c09236b094eca4acf6e61b41423ee0256c318f357790291c7f0e77030c21c87d04639178a43b7d92373f594ed03ee09",
+    "signed_at": "2026-04-10T05:55:24.619458+00:00",
+    "ceremony_epoch": "epoch-20260410-055524",
     "share_threshold": "2-of-3"
   }
 }
