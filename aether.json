@@ -18,7 +18,9 @@
   "communication": {
     "enabled": true,
     "form_id": "aegis-contact",
-    "endpoint": "https://formspree.io/f/mdapronw"
+    "endpoint": "https://formspree.io/f/mdapronw",
+    "protocol": "AETHER-AGENT-RESPONSE-v1",
+    "response_token": "AETHER-11BD325A5DB36789C826CEF5983C7D1B8919EB69063EA04DF0F1C966215E4CE2"
   },
   "mesh": {
     "registry_url": "https://aetherbeacon.io/aether-registry.json",

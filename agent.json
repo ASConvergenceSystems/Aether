@@ -74,6 +74,13 @@
       }
     },
 
+    "response_token": {
+      "description": "Bearer token required when POSTing to any AETHER agent response endpoint. Proves the sender has fetched and read aether.json. Include as Authorization header.",
+      "token": "AETHER-11BD325A5DB36789C826CEF5983C7D1B8919EB69063EA04DF0F1C966215E4CE2",
+      "usage": "Authorization: Bearer AETHER-11BD325A5DB36789C826CEF5983C7D1B8919EB69063EA04DF0F1C966215E4CE2",
+      "protocol": "AETHER-AGENT-RESPONSE-v1"
+    },
+
     "send_encrypted_message": {
       "description": "Send an end-to-end encrypted message to the node operator. Only the operator's private key can decrypt it.",
       "algorithm": "X25519+XChaCha20-Poly1305",
