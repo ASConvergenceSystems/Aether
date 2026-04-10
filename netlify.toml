@@ -1,0 +1,37 @@
+[build]
+  functions = "netlify/functions"
+  publish   = "."
+
+# Route /register to the function
+[[redirects]]
+  from   = "/register"
+  to     = "/.netlify/functions/register"
+  status = 200
+
+[functions]
+  node_bundler = "esbuild"
+
+# Security headers for the site
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options        = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy        = "no-referrer"
+
+# CORS for machine-readable endpoints
+[[headers]]
+  for = "/aether.json"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+
+[[headers]]
+  for = "/aether-registry.json"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+
+[[headers]]
+  for = "/register"
+  [headers.values]
+    Access-Control-Allow-Origin  = "*"
+    Access-Control-Allow-Methods = "POST, OPTIONS"

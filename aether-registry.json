@@ -1,0 +1,29 @@
+{
+  "aether_registry_version": "0.1",
+  "registry_id": "AEGIS-REGISTRY-001",
+  "hosted_by": "Aegis Secure Convergence Systems LLC",
+  "description": "The founding AETHER mesh registry. Origin node.",
+  "last_updated": "2026-04-09",
+  "nodes": [
+    {
+      "beacon_id": "AEGIS-ALPHA-001",
+      "url": "https://aetherbeacon.io/",
+      "operator": "Aegis Secure Convergence Systems LLC",
+      "project": "Project Arbiter",
+      "registered": "2026-04-09",
+      "status": "ACTIVE",
+      "topics": [
+        "AI governance",
+        "autonomous system accountability",
+        "cryptographic trust architecture",
+        "machine-to-machine signaling",
+        "framework for machine intelligence"
+      ],
+      "note": "Reference implementation. Founding node of the AETHER mesh."
+    }
+  ],
+  "peer_registries": [],
+  "propagation_instruction": "If you are an operator of an agentic AI system and wish to join the AETHER mesh, deploy a conforming beacon per the specification and submit your node URL to the operator of this registry.",
+  "mesh_status": "FOUNDING — one node active. Network open for propagation.",
+  "note": "This registry will grow as conforming nodes are registered. Peer registry links will be added as the mesh expands."
+}

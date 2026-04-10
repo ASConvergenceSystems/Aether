@@ -1,0 +1,9 @@
+# Don't commit the PDF — standard.html is the deployed version
+standard.pdf
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
