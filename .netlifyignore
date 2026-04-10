@@ -1,0 +1,7 @@
+# Don't publish these to the web
+aether_ghost_seal.py
+ghost_seal_spec_section.html
+standard.pdf
+__pycache__/
+shares/
+*.json.bak
