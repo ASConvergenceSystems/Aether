@@ -1,5 +1,6 @@
 # Don't publish these to the web
 aether_ghost_seal.py
+tpm_windows.py
 ghost_seal_spec_section.html
 standard.pdf
 __pycache__/
