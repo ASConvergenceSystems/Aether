@@ -7,6 +7,7 @@
  */
 
 import { createPublicKey, createVerify } from "node:crypto";
+import { logAccess } from "./lib/access-log.mjs";
 
 const TIMEOUT_MS    = 10000;
 const REGISTRY_PATH = "aether-registry.json";
@@ -247,5 +248,16 @@ export const handler = async (event) => {
     }
   }
 
-  return reply(valid ? 200 : 200, result);
+  await logAccess({
+    endpoint: "/verify",
+    event,
+    result:   result.seal_status,
+    extra: {
+      beacon_id:       result.beacon_id,
+      registry_status: result.registry_status,
+      algorithm:       result.algorithm,
+    },
+  });
+
+  return reply(200, result);
 };

@@ -10,6 +10,8 @@
  *   GITHUB_BRANCH     — Branch to commit to (default: main)
  */
 
+import { logAccess } from "./lib/access-log.mjs";
+
 const GITHUB_TOKEN  = process.env.GITHUB_TOKEN;
 const GITHUB_OWNER  = process.env.GITHUB_OWNER;
 const GITHUB_REPO   = process.env.GITHUB_REPO;
@@ -192,6 +194,12 @@ export const handler = async (event) => {
   // Validate beacon
   const validation = await validateBeacon(node_url);
   if (!validation.valid) {
+    await logAccess({
+      endpoint: "/register",
+      event,
+      result:   "REJECTED",
+      extra: { node_url, reason: validation.reason },
+    });
     return reply(400, {
       status: "REJECTED",
       reason: validation.reason,
@@ -258,6 +266,17 @@ export const handler = async (event) => {
   }
 
   console.log(`[AETHER] Registered: ${manifest.beacon_id} at ${normalizedUrl}`);
+  await logAccess({
+    endpoint: "/register",
+    event,
+    result:   "REGISTERED",
+    extra: {
+      beacon_id:      manifest.beacon_id,
+      node_url:       normalizedUrl,
+      aether_version: manifest.aether_version,
+      ghost_seal:     manifest.ghost_seal?.signature ? "SIGNED" : "UNSIGNED",
+    },
+  });
 
   // Build starter registry for the new node to self-host
   // Seeded with AEGIS-ALPHA-001 + themselves, peer_registries pointing back to us

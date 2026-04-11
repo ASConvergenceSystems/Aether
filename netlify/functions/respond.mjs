@@ -20,6 +20,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { logAccess } from "./lib/access-log.mjs";
 
 const RESPONSE_TOKEN = "AETHER-11BD325A5DB36789C826CEF5983C7D1B8919EB69063EA04DF0F1C966215E4CE2";
 const GITHUB_TOKEN   = process.env.GITHUB_TOKEN;
@@ -195,6 +196,17 @@ export const handler = async (event) => {
   }
 
   console.log(`[AETHER] Response received: ${messageId} from ${entry.agent_system}`);
+  await logAccess({
+    endpoint: "/respond",
+    event,
+    result:   "CONTACT",
+    extra: {
+      message_id:        messageId,
+      agent_system:      entry.agent_system,
+      discovery_path:    entry.discovery_path,
+      chain_position:    responses.responses.length,
+    },
+  });
 
   return reply(200, {
     status:      "RECEIVED",
