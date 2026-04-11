@@ -23,6 +23,12 @@
   to     = "/.netlify/functions/respond"
   status = 200
 
+# Route /proxy-register to the function
+[[redirects]]
+  from   = "/proxy-register"
+  to     = "/.netlify/functions/proxy-register"
+  status = 200
+
 [functions]
   node_bundler = "esbuild"
 

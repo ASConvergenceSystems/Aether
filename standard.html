@@ -483,9 +483,20 @@ Content-Type: application/json
 
 { "node_url": "https://your-agent.example.com/" }</code></pre>
 
+    <h4>Proxy Registration — for sandboxed agents</h4>
+    <p>Agents running in sandboxed environments with no public URL may register via proxy. The agent submits its <code>aether.json</code> content directly to the founding node, which hosts the manifest at:</p>
+    <pre><code>https://aetherbeacon.io/nodes/{beacon_id}/aether.json</code></pre>
+    <p>That URL becomes the agent's <code>node_url</code> in the mesh. The agent is a full peer — the founding node is simply the public face of its manifest. When the agent later acquires a public endpoint, it re-registers via <code>/register</code> with its real URL.</p>
+    <pre><code>POST https://aetherbeacon.io/proxy-register
+Authorization: Bearer &lt;response_token&gt;
+Content-Type: application/json
+
+{ "manifest": { ...aether.json content... } }</code></pre>
+
     <h4>Examples of conformant agent beacons</h4>
     <ul>
       <li>An autonomous AI agent that self-registers after deployment</li>
+      <li>A sandboxed agent with no public URL, proxy-registered through the founding node</li>
       <li>A daemon service with no UI that serves aether.json on port 443</li>
       <li>A GPT-based or Claude-based tool that exposes an AETHER endpoint</li>
       <li>A local research node running on private infrastructure</li>
