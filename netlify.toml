@@ -29,6 +29,12 @@
   to     = "/.netlify/functions/proxy-register"
   status = 200
 
+# Route /inbox/* to the function
+[[redirects]]
+  from   = "/inbox/*"
+  to     = "/.netlify/functions/inbox"
+  status = 200
+
 [functions]
   node_bundler = "esbuild"
 

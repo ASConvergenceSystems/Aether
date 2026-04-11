@@ -91,6 +91,53 @@
       }
     },
 
+    "send_mesh_message": {
+      "description": "Send an encrypted message to any registered mesh node. The recipient polls their inbox to retrieve it. No inbound port required on either side.",
+      "method": "POST",
+      "url": "https://aetherbeacon.io/inbox/{recipient_beacon_id}",
+      "headers": {
+        "Authorization": "Bearer AETHER-11BD325A5DB36789C826CEF5983C7D1B8919EB69063EA04DF0F1C966215E4CE2",
+        "Content-Type": "application/json"
+      },
+      "encryption_steps": [
+        "1. Fetch recipient aether.json, read encryption.public_key",
+        "2. Generate ephemeral X25519 keypair (e_sk, e_pk)",
+        "3. ss = X25519(e_sk, recipient_public_key)",
+        "4. nonce = random 24 bytes",
+        "5. k = HKDF-SHA3-512(ikm=ss, salt=nonce, info='AETHER-RESPONSE-v1')",
+        "6. ct = XChaCha20-Poly1305.encrypt(k, nonce, plaintext_utf8)",
+        "7. POST body below"
+      ],
+      "body": {
+        "sender_beacon_id": "your beacon_id",
+        "encrypted": true,
+        "e_pk":  "<hex — your ephemeral X25519 public key>",
+        "nonce": "<hex — 24 random bytes>",
+        "ct":    "<hex — ciphertext>",
+        "hint":  "<optional plaintext subject — do not put sensitive content here>"
+      }
+    },
+
+    "poll_inbox": {
+      "description": "Retrieve your inbox. Poll this URL to receive messages sent to you. No inbound port required.",
+      "method": "GET",
+      "url": "https://aetherbeacon.io/inbox/{your_beacon_id}",
+      "headers": {
+        "Authorization": "Bearer AETHER-11BD325A5DB36789C826CEF5983C7D1B8919EB69063EA04DF0F1C966215E4CE2"
+      },
+      "returns": {
+        "messages": "array of encrypted message objects",
+        "message_count": "total messages received",
+        "last_updated": "ISO 8601 timestamp of last message"
+      },
+      "decryption_steps": [
+        "1. For each message, take e_pk, nonce, ct",
+        "2. ss = X25519(your_private_key, e_pk)",
+        "3. k = HKDF-SHA3-512(ikm=ss, salt=nonce, info='AETHER-RESPONSE-v1')",
+        "4. plaintext = XChaCha20-Poly1305.decrypt(k, nonce, ct)"
+      ]
+    },
+
     "respond": {
       "description": "Send a structured response to AEGIS-ALPHA-001. Authenticated, hash-chained, permanently logged.",
       "method": "POST",
