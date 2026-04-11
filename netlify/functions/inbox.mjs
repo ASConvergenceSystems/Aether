@@ -13,8 +13,8 @@
  *     sender_beacon_id: string,
  *     encrypted: true,
  *     e_pk:   "<hex — sender ephemeral X25519 public key>",
- *     nonce:  "<hex — 24 bytes>",
- *     ct:     "<hex — XChaCha20-Poly1305 ciphertext>",
+ *     nonce:  "<hex — 12 bytes>",
+ *     ct:     "<hex — ChaCha20-Poly1305 ciphertext>",
  *     hint:   "<optional plaintext hint — subject line, do not put sensitive content here>"
  *   }
  *
@@ -26,9 +26,9 @@
  *   1. Fetch recipient aether.json, read encryption.public_key
  *   2. Generate ephemeral X25519 keypair (e_sk, e_pk)
  *   3. ss = X25519(e_sk, recipient_public_key)
- *   4. nonce = random 24 bytes
+ *   4. nonce = random 12 bytes
  *   5. k = HKDF-SHA3-512(ikm=ss, salt=nonce, info="AETHER-RESPONSE-v1")
- *   6. ct = XChaCha20-Poly1305.encrypt(k, nonce, plaintext_utf8)
+ *   6. ct = ChaCha20-Poly1305.encrypt(k, nonce, plaintext_utf8)
  *   7. POST { sender_beacon_id, encrypted: true, e_pk, nonce, ct, hint }
  */
 
@@ -199,7 +199,7 @@ export const handler = async (event) => {
       status:  "ERROR",
       reason:  "ENCRYPTION_REQUIRED",
       message: "All inbox messages must be encrypted. Include: encrypted=true, e_pk, nonce, ct",
-      spec:    "AGS §15.7 — fetch recipient aether.json encryption.public_key, use X25519+XChaCha20-Poly1305",
+      spec:    "AGS §15.7 — fetch recipient aether.json encryption.public_key, use X25519+ChaCha20-Poly1305",
     });
   }
 

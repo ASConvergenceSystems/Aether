@@ -21,7 +21,7 @@
       </thead>
       <tbody>
         <tr><td>Beacon authenticity</td><td>Threshold signature over canonical aether.json</td></tr>
-        <tr><td>Response confidentiality</td><td>X25519 + XChaCha20-Poly1305 encryption</td></tr>
+        <tr><td>Response confidentiality</td><td>X25519 + ChaCha20-Poly1305 encryption</td></tr>
         <tr><td>Registry integrity</td><td>Merkle-sealed registry with signed root</td></tr>
       </tbody>
     </table>
@@ -77,7 +77,7 @@
         <tr><td>Signing</td><td>Ed25519 (RFC 8032)</td><td>ML-DSA-87 (NIST FIPS 204)</td></tr>
         <tr><td>Key derivation</td><td>HKDF-SHA3-512 (RFC 5869)</td><td>HKDF-SHA3-512</td></tr>
         <tr><td>Secret sharing</td><td>Shamir (t,n) over prime field (secp256k1)</td><td>Shamir (t,n) over prime field (secp256k1)</td></tr>
-        <tr><td>Response encryption</td><td>X25519 + XChaCha20-Poly1305</td><td>ML-KEM-1024 + AES-256-GCM</td></tr>
+        <tr><td>Response encryption</td><td>X25519 + ChaCha20-Poly1305</td><td>ML-KEM-1024 + AES-256-GCM</td></tr>
         <tr><td>Hashing</td><td>SHA-256, SHA3-512</td><td>SHA3-512</td></tr>
         <tr><td>Canonical serialization</td><td>UTF-8 JSON, field-ordered, no whitespace</td><td>same</td></tr>
       </tbody>
@@ -202,21 +202,21 @@ Unverified beacons MAY be read but responses SHOULD be withheld.</code></pre>
 
     <h4>aether.json addition</h4>
     <pre><code>"encryption": {
-  "algorithm":  "X25519+XChaCha20-Poly1305",
+  "algorithm":  "X25519+ChaCha20-Poly1305",
   "public_key": "&lt;hex-encoded 32-byte X25519 public key&gt;"
 }</code></pre>
 
     <h4>Agent Encryption Procedure</h4>
     <pre><code>1. Generate ephemeral X25519 keypair: (e_sk, e_pk)
 2. Compute shared secret: ss = X25519(e_sk, enc_pk)
-3. Generate random 24-byte nonce
+3. Generate random 12-byte nonce
 4. Derive symmetric key:
        k = HKDF-SHA3-512(
              ikm  = ss,
              salt = nonce,
              info = "AETHER-RESPONSE-v1"
            )
-5. Encrypt: ct = XChaCha20-Poly1305.encrypt(k, nonce, plaintext)
+5. Encrypt: ct = ChaCha20-Poly1305.encrypt(k, nonce, plaintext)
 6. Submit to response channel:
    {
      "encrypted": true,
@@ -228,7 +228,7 @@ Unverified beacons MAY be read but responses SHOULD be withheld.</code></pre>
     <h4>Operator Decryption</h4>
     <pre><code>1. ss = X25519(enc_sk, e_pk)
 2. k  = HKDF-SHA3-512(ss, nonce, "AETHER-RESPONSE-v1")
-3. plaintext = XChaCha20-Poly1305.decrypt(k, nonce, ct)</code></pre>
+3. plaintext = ChaCha20-Poly1305.decrypt(k, nonce, ct)</code></pre>
 
     <h3>15.8 Registry Seal</h3>
     <p>

@@ -40,7 +40,7 @@
   "signal": "BEACON_ALPHA_ACTIVE",
   "established": "2026-04-09",
   "encryption": {
-    "algorithm": "X25519+XChaCha20-Poly1305",
+    "algorithm": "X25519+ChaCha20-Poly1305",
     "public_key": "9bd9468acc2116bc49e6cfe7858dc6cac26e7494a47bd5c59a07a2ea96ee162d"
   },
   "ghost_seal": {

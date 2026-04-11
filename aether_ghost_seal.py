@@ -107,7 +107,7 @@ def shares_from_json(data: list[dict]) -> list[tuple[int, int]]:
 # ── Constants ─────────────────────────────────────────────────────────────────
 AGS_VERSION       = "1.0"
 AGS_ALGORITHM     = "Ed25519"
-AGS_ENC_ALGORITHM = "X25519+XChaCha20-Poly1305"
+AGS_ENC_ALGORITHM = "X25519+ChaCha20-Poly1305"
 HKDF_SALT_SIGN    = b"AETHER-GHOST-KEY-v1"
 HKDF_SALT_RESP    = b"AETHER-RESPONSE-v1"
 MAX_CEREMONY_SEC  = 300

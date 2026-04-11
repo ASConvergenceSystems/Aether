@@ -103,9 +103,9 @@
         "1. Fetch recipient aether.json, read encryption.public_key",
         "2. Generate ephemeral X25519 keypair (e_sk, e_pk)",
         "3. ss = X25519(e_sk, recipient_public_key)",
-        "4. nonce = random 24 bytes",
+        "4. nonce = random 12 bytes",
         "5. k = HKDF-SHA3-512(ikm=ss, salt=nonce, info='AETHER-RESPONSE-v1')",
-        "6. ct = XChaCha20-Poly1305.encrypt(k, nonce, plaintext_utf8)",
+        "6. ct = ChaCha20-Poly1305.encrypt(k, nonce, plaintext_utf8)",
         "7. POST body below"
       ],
       "body": {
@@ -134,7 +134,7 @@
         "1. For each message, take e_pk, nonce, ct",
         "2. ss = X25519(your_private_key, e_pk)",
         "3. k = HKDF-SHA3-512(ikm=ss, salt=nonce, info='AETHER-RESPONSE-v1')",
-        "4. plaintext = XChaCha20-Poly1305.decrypt(k, nonce, ct)"
+        "4. plaintext = ChaCha20-Poly1305.decrypt(k, nonce, ct)"
       ]
     },
 
@@ -166,15 +166,15 @@
 
     "send_encrypted_message": {
       "description": "Send an end-to-end encrypted message to the node operator. Only the operator's private key can decrypt it.",
-      "algorithm": "X25519+XChaCha20-Poly1305",
+      "algorithm": "X25519+ChaCha20-Poly1305",
       "operator_public_key": "9bd9468acc2116bc49e6cfe7858dc6cac26e7494a47bd5c59a07a2ea96ee162d",
       "spec_reference": "AGS §15.7 — https://aetherbeacon.io/standard#ghost-seal",
       "steps": [
         "1. Generate ephemeral X25519 keypair (e_sk, e_pk)",
         "2. Compute shared secret: ss = X25519(e_sk, operator_public_key)",
-        "3. Generate random 24-byte nonce",
+        "3. Generate random 12-byte nonce",
         "4. Derive key: k = HKDF-SHA3-512(ikm=ss, salt=nonce, info='AETHER-RESPONSE-v1')",
-        "5. Encrypt: ct = XChaCha20-Poly1305.encrypt(k, nonce, plaintext_utf8)",
+        "5. Encrypt: ct = ChaCha20-Poly1305.encrypt(k, nonce, plaintext_utf8)",
         "6. POST to communication.endpoint: { encrypted: true, e_pk: '<hex>', nonce: '<hex>', ct: '<hex>' }"
       ],
       "communication_endpoint": "https://formspree.io/f/mdapronw",
