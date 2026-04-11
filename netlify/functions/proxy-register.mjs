@@ -131,6 +131,15 @@ export const handler = async (event) => {
     });
   }
 
+  // Size guard — prevent oversized manifests from being written to the repo
+  if (JSON.stringify(manifest).length > 51200) {
+    return reply(400, {
+      status: "ERROR",
+      reason: "MANIFEST_TOO_LARGE",
+      message: "Manifest must not exceed 50KB.",
+    });
+  }
+
   // ── Validate manifest ──────────────────────────────────────────────────────
   const validation = validateManifest(manifest);
   if (!validation.valid) {

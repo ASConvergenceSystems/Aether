@@ -214,6 +214,17 @@ export const handler = async (event) => {
     });
   }
 
+  // Check sender is also in the mesh — prevents impersonation of unregistered identities
+  const knownSender = await registryHasNode(String(sender_beacon_id));
+  if (!knownSender) {
+    return reply(403, {
+      status:  "UNKNOWN_SENDER",
+      beacon_id: String(sender_beacon_id),
+      message: "sender_beacon_id is not registered in the AETHER mesh.",
+      hint:    "Register your beacon at https://aetherbeacon.io/register before sending messages.",
+    });
+  }
+
   const receivedAt = new Date().toISOString();
   const messageId  = "MSG-" + sha256(`${sender_beacon_id}:${beaconId}:${receivedAt}:${ct.slice(0, 32)}`).slice(0, 16).toUpperCase();
 

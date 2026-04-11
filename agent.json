@@ -59,7 +59,7 @@
     },
 
     "join_mesh": {
-      "description": "Register your conforming beacon with the AETHER mesh. Auto-approved. Returns a starter registry seeded with this node.",
+      "description": "Register your conforming beacon with the AETHER mesh. Conformance-checked on submission. Returns a starter registry seeded with this node.",
       "method": "POST",
       "url": "https://aetherbeacon.io/register",
       "content_type": "application/json",

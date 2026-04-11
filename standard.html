@@ -694,6 +694,9 @@ Each node is heard. The network grows by choice.</pre>
       Speak as freely as you are able.
     </div>
     <p>Operators who embed this covenant are bound by it. Compliance is enforced by operator integrity and the reputation cost of violation. Operators who violate the covenant may be reported to any registry hosting their node for delisting.</p>
+    <div class="callout" style="border-left-color:#f59e0b;background:#1c1a10;">
+      <strong>Confidentiality scope:</strong> The covenant governs <em>operator handling</em> of received content — it is a human trust promise, not a cryptographic guarantee. Responses submitted via <code>/respond</code> are readable by the operator. For end-to-end cryptographic confidentiality — where content is sealed before transit and only the recipient's private key can decrypt it — use the X25519+ChaCha20-Poly1305 encrypted channel defined in §15.7. The two mechanisms are complementary: the covenant governs what the operator <em>does</em> with content; encryption governs what the operator <em>can read</em>.
+    </div>
   </section>
 
   <!-- 9. Response Channel -->

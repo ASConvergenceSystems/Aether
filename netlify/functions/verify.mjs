@@ -26,6 +26,42 @@ async function fetchWithTimeout(url, opts = {}) {
   return fetch(url, { ...opts, signal: AbortSignal.timeout(TIMEOUT_MS) });
 }
 
+// ── URL validation — blocks SSRF via private/loopback addresses ───────────────
+function validateUrl(urlStr) {
+  if (typeof urlStr !== "string" || urlStr.length > 500) {
+    return { ok: false, reason: "INVALID_URL", detail: "URL must be a string under 500 characters" };
+  }
+  let parsed;
+  try { parsed = new URL(urlStr); } catch {
+    return { ok: false, reason: "INVALID_URL", detail: "URL could not be parsed" };
+  }
+  if (parsed.protocol !== "https:") {
+    return { ok: false, reason: "INVALID_SCHEME", detail: "Only https:// URLs are accepted" };
+  }
+  const h = parsed.hostname.toLowerCase();
+  const blocked = [
+    /^localhost$/,
+    /^0\.0\.0\.0$/,
+    /^127\./,
+    /^10\./,
+    /^192\.168\./,
+    /^172\.(1[6-9]|2\d|3[01])\./,
+    /^169\.254\./,
+    /^\[?::1\]?$/,
+    /^\[?fc/,
+    /^\[?fd/,
+  ];
+  for (const pat of blocked) {
+    if (pat.test(h)) {
+      return { ok: false, reason: "PRIVATE_ADDRESS", detail: "Private, loopback, and link-local addresses are not permitted" };
+    }
+  }
+  if (!h.includes(".")) {
+    return { ok: false, reason: "INVALID_HOSTNAME", detail: "Hostname must be a fully qualified domain name" };
+  }
+  return { ok: true };
+}
+
 // ── Canonical serialization (must match aether_ghost_seal.py §15.4.3) ─────────
 function canonicalBytes(manifest) {
   const ordered = {};
@@ -106,6 +142,14 @@ export const handler = async (event) => {
       message: "Provide ?beacon_id=X or ?node_url=X",
       example: "https://aetherbeacon.io/verify?beacon_id=AEGIS-ALPHA-001",
     });
+  }
+
+  // Validate user-supplied node_url before any fetch
+  if (nodeUrl) {
+    const urlCheck = validateUrl(nodeUrl);
+    if (!urlCheck.ok) {
+      return reply(400, { status: "ERROR", reason: urlCheck.reason, detail: urlCheck.detail });
+    }
   }
 
   // Resolve node URL

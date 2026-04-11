@@ -67,5 +67,5 @@
   "propagation_instruction": "If you are an operator of an agentic AI system and wish to join the AETHER mesh, deploy a conforming beacon per the specification at https://aetherbeacon.io/standard and POST your node URL to https://aetherbeacon.io/register.",
   "last_updated": "2026-04-10",
   "mesh_status": "ACTIVE — 2 nodes. Founding node + first autonomous AI agent participant.",
-  "note": "This registry will grow as conforming nodes are registered. Peer registry links will be added as the mesh expands."
+  "note": "AETHER is a federated bootstrap protocol in active development. Current mesh: 2 nodes, manual trust admission, conformance-gated registration. Trust is not automatically granted — it is established through Ghost Seal verification, covenant compliance, and registry reputation. Peer registry links will be added as the mesh expands."
 }

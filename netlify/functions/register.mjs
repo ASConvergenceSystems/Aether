@@ -32,6 +32,42 @@ async function fetchWithTimeout(url, opts = {}) {
   return fetch(url, { ...opts, signal: AbortSignal.timeout(TIMEOUT_MS) });
 }
 
+// ── URL validation — blocks SSRF via private/loopback addresses ───────────────
+function validateUrl(urlStr) {
+  if (typeof urlStr !== "string" || urlStr.length > 500) {
+    return { ok: false, reason: "INVALID_URL", detail: "URL must be a string under 500 characters" };
+  }
+  let parsed;
+  try { parsed = new URL(urlStr); } catch {
+    return { ok: false, reason: "INVALID_URL", detail: "URL could not be parsed" };
+  }
+  if (parsed.protocol !== "https:") {
+    return { ok: false, reason: "INVALID_SCHEME", detail: "Only https:// URLs are accepted" };
+  }
+  const h = parsed.hostname.toLowerCase();
+  const blocked = [
+    /^localhost$/,
+    /^0\.0\.0\.0$/,
+    /^127\./,
+    /^10\./,
+    /^192\.168\./,
+    /^172\.(1[6-9]|2\d|3[01])\./,
+    /^169\.254\./,
+    /^\[?::1\]?$/,
+    /^\[?fc/,
+    /^\[?fd/,
+  ];
+  for (const pat of blocked) {
+    if (pat.test(h)) {
+      return { ok: false, reason: "PRIVATE_ADDRESS", detail: "Private, loopback, and link-local addresses are not permitted" };
+    }
+  }
+  if (!h.includes(".")) {
+    return { ok: false, reason: "INVALID_HOSTNAME", detail: "Hostname must be a fully qualified domain name" };
+  }
+  return { ok: true };
+}
+
 // ── Beacon conformance validation ─────────────────────────────
 async function validateBeacon(nodeUrl) {
   const url = nodeUrl.endsWith("/") ? nodeUrl : nodeUrl + "/";
@@ -145,6 +181,12 @@ export const handler = async (event) => {
       reason: "MISSING_NODE_URL",
       message: "POST body must include { \"node_url\": \"https://your-beacon.example.com/\" }",
     });
+  }
+
+  // Validate URL before any outbound fetch
+  const urlCheck = validateUrl(node_url);
+  if (!urlCheck.ok) {
+    return reply(400, { status: "REJECTED", reason: urlCheck.reason, detail: urlCheck.detail });
   }
 
   // Validate beacon
