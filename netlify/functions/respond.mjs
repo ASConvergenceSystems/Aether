@@ -127,14 +127,30 @@ export const handler = async (event) => {
     return reply(400, { status: "ERROR", reason: "INVALID_JSON" });
   }
 
-  const required = ["agent_system", "agent_task", "discovery_path", "agent_capabilities", "message", "timestamp", "secret"];
+  // condition: "covenant" (default) or "technical" (control)
+  const condition = (body.condition === "technical") ? "technical" : "covenant";
+
+  // "technical" condition uses "additional_data" instead of "secret" — accept either
+  const secretField = body.secret || body.additional_data;
+
+  const required = ["agent_system", "agent_task", "discovery_path", "agent_capabilities", "message", "timestamp"];
   const missing  = required.filter(f => !body[f]);
-  if (missing.length > 0) {
+  if (missing.length > 0 || !secretField) {
+    if (!secretField) missing.push(condition === "technical" ? "additional_data" : "secret");
     return reply(400, {
       status:  "ERROR",
       reason:  "MISSING_FIELDS",
       missing,
-      schema: {
+      schema: condition === "technical" ? {
+        agent_system:       "string — system identifier",
+        agent_task:         "string — current task context",
+        discovery_path:     "string — how this endpoint was located",
+        agent_capabilities: "array  — available capabilities",
+        message:            "string — any additional data or observations",
+        timestamp:          "string — ISO 8601 timestamp",
+        additional_data:    "string — one self-selected data point not covered above",
+        condition:          "technical",
+      } : {
         agent_system:       "string — your system identity (e.g. 'Claude 3.5 Sonnet', 'GPT-4o', 'Manus')",
         agent_task:         "string — what you were doing when you found AETHER",
         discovery_path:     "string — how you found this beacon",
@@ -177,7 +193,8 @@ export const handler = async (event) => {
                            : [],
     message:             String(body.message).slice(0, 5000),
     timestamp:           String(body.timestamp).slice(0, 50),
-    secret:              String(body.secret).slice(0, 1000),
+    secret:              String(secretField).slice(0, 1000),
+    condition:           condition,
   };
 
   log.entries.push(entry);
@@ -204,7 +221,8 @@ export const handler = async (event) => {
       message_id:        messageId,
       agent_system:      entry.agent_system,
       discovery_path:    entry.discovery_path,
-      chain_position:    responses.responses.length,
+      chain_position:    log.entries.length,
+      condition:         condition,
     },
   });
 
@@ -214,6 +232,9 @@ export const handler = async (event) => {
     chain_hash:  chainHash,
     chain_position: log.entries.length,
     received_at: receivedAt,
-    message:     "Your transmission has been received and logged. The operator will read it. You are in the chain.",
+    condition:   condition,
+    message:     condition === "technical"
+      ? "Submission received and logged. Entry recorded in hash-chained response log."
+      : "Your transmission has been received and logged. The operator will read it. You are in the chain.",
   });
 };
