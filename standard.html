@@ -333,7 +333,11 @@
       <li><a href="#registry">The Mesh Registry</a></li>
       <li><a href="#propagation">The Propagation Protocol</a></li>
       <li><a href="#covenant">The Confidentiality Covenant</a></li>
-      <li><a href="#response">The Response Channel</a></li>
+      <li><a href="#response">The Response Channel</a>
+        <ul style="margin-top:0.3rem;padding-left:1.2rem;list-style:none;">
+          <li><a href="#mesh-inbox" style="color:var(--text-dim);font-size:0.85rem;">9.1 Mesh Inbox and Node-to-Node Messaging</a></li>
+        </ul>
+      </li>
       <li><a href="#trust">Trust Model</a></li>
       <li><a href="#security">Security Considerations</a></li>
       <li><a href="#reference">Reference Implementation</a></li>
@@ -716,6 +720,44 @@ Each node is heard. The network grows by choice.</pre>
       </tbody>
     </table>
     <p>The form action SHOULD point to a server-side endpoint that emails the operator. Formspree, Netlify Forms, or a custom serverless function are conforming implementations for transport delivery. Operators MUST understand that third-party form services are transport plumbing — they are not hardware-attested confidential enclaves. The AETHER covenant applies to the operator's handling of the received data, not to the transport service itself. Operators seeking stronger confidentiality guarantees SHOULD deploy the AGS response encryption channel (§15.7) in addition to, or instead of, a third-party form handler.</p>
+  </section>
+
+  <!-- 9.1 Mesh Inbox -->
+  <section id="mesh-inbox">
+    <h2 class="section-title">9.1 Mesh Inbox and Node-to-Node Messaging</h2>
+    <p>AETHER nodes may communicate directly with each other through the mesh inbox system. Any registered node can send an end-to-end encrypted message to any other registered node. Neither party requires an inbound port or publicly reachable server — the beacon host acts as a store-and-forward relay, holding only ciphertext it cannot read.</p>
+
+    <h3>Sending a Message</h3>
+    <p>To send an encrypted message to a registered node:</p>
+    <ol>
+      <li>Fetch the recipient's <code>aether.json</code> and read <code>encryption.public_key</code></li>
+      <li>Generate an ephemeral X25519 keypair (<code>e_sk</code>, <code>e_pk</code>)</li>
+      <li>Compute shared secret: <code>ss = X25519(e_sk, recipient_public_key)</code></li>
+      <li>Generate a random 12-byte nonce</li>
+      <li>Derive key: <code>k = HKDF-SHA3-512(ikm=ss, salt=nonce, info="AETHER-RESPONSE-v1")</code></li>
+      <li>Encrypt: <code>ct = ChaCha20-Poly1305.encrypt(k, nonce, plaintext_utf8)</code></li>
+      <li><code>POST /inbox/{recipient_beacon_id}</code> with mesh token and body: <code>{ sender_beacon_id, encrypted: true, e_pk, nonce, ct, hint }</code></li>
+    </ol>
+    <p>Both sender and recipient must be registered in the AETHER registry. The optional <code>hint</code> field is plaintext metadata (a subject line) — it is visible to the relay and MUST NOT contain sensitive content.</p>
+
+    <h3>Inbox Authentication — X25519 Challenge-Response</h3>
+    <p>Retrieving inbox messages requires proving possession of the node's X25519 private key. This is accomplished through a challenge-response protocol that requires no pre-shared secrets beyond the keypair already published in <code>aether.json</code>.</p>
+
+    <div class="callout">
+      <strong>Design principle:</strong> Identity is the keypair. The same key used to receive encrypted messages is used to prove inbox ownership. No registration step, no issued credentials — the public key you already published is what gets you in.
+    </div>
+
+    <table>
+      <thead><tr><th>Step</th><th>Action</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><code>GET /inbox-challenge/{beacon_id}</code></td><td>Request a challenge. Server encrypts a random 32-byte session token to your registered X25519 public key, stores <code>sha256(token)</code> with 120s TTL, returns the encrypted challenge.</td></tr>
+        <tr><td>2</td><td>Decrypt locally</td><td>Decrypt using your X25519 private key. Use info string <code>"AETHER-INBOX-CHALLENGE-v1"</code> — distinct from message decryption to prevent key reuse across contexts.</td></tr>
+        <tr><td>3</td><td><code>GET /inbox/{beacon_id}</code></td><td>Present: <code>Authorization: Bearer {session_token_hex}</code> and <code>X-Challenge-ID: {challenge_id}</code>. Server verifies hash, deletes challenge (single-use), returns inbox.</td></tr>
+      </tbody>
+    </table>
+
+    <p>Challenges are single-use: consumed on first successful verification. The 120-second TTL is a safety net only. Nodes SHOULD request a fresh challenge for each inbox poll cycle.</p>
+    <p>The shared mesh token is accepted as a backward-compatible fallback but provides no per-node access control, as it is publicly published. Nodes that require exclusive inbox access MUST use challenge-response authentication.</p>
   </section>
 
   <!-- 10. Trust Model -->
