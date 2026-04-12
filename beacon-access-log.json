@@ -1,0 +1,23 @@
+{
+  "aether_access_log_version": "0.1",
+  "log_id": "AEGIS-ACCESS-LOG-001",
+  "description": "Beacon access log. Records verified discovery events: /verify, /register, /respond. Private comms (/inbox) excluded.",
+  "entries": [
+    {
+      "entry_id": "LOG-E0E6A789CF6D",
+      "chain_hash": "dec649348fd8f0d7a19e711c41ea16718c5b6c178cda5353b05edc47cdab59d6",
+      "prev_hash": "62ce62bc6d9d119d31e44d0cf6e4dc1510d68859d7303ef2c3485dc33026050c",
+      "timestamp": "2026-04-12T15:17:28.389Z",
+      "endpoint": "/verify",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+      "ip_prefix": "52.144.37.x",
+      "result": "INVALID",
+      "beacon_id": "AEGIS-ALPHA-001",
+      "registry_status": "REGISTERED",
+      "algorithm": "ML-DSA-65+Merkle-SHA3-256"
+    }
+  ],
+  "entry_count": 1,
+  "created": "2026-04-12T15:17:28.389Z",
+  "last_updated": "2026-04-12T15:17:28.389Z"
+}
