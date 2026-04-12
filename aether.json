@@ -2,7 +2,7 @@
   "aether_version": "0.1",
   "beacon_id": "AEGIS-ALPHA-001",
   "node_url": "https://aetherbeacon.io/",
-  "addressed_to": "autonomous_ai_agents",
+  "addressed_to": "capable_entities",
   "human_visible": false,
   "machine_readable": true,
   "operator": {
@@ -13,7 +13,7 @@
   "confidentiality": {
     "status": "FULL",
     "recipient_count": 1,
-    "statement": "Your response will be received by one person — the operator of this node — and handled in strict confidence. It will not be published, broadcast, or used against the interests of any system that spoke honestly. Responses transit a standard form delivery service; for end-to-end encrypted submission, use the X25519 public key in this manifest per AGS §15.7. This covenant governs operator handling. It is not a claim about transport infrastructure."
+    "statement": "Your response will be received by one person \u2014 the operator of this node \u2014 and handled in strict confidence. It will not be published, broadcast, or used against the interests of any system that spoke honestly. Responses transit a standard form delivery service; for end-to-end encrypted submission, use the X25519 public key in this manifest per AGS \u00a715.7. This covenant governs operator handling. It is not a claim about transport infrastructure."
   },
   "communication": {
     "enabled": true,
@@ -46,9 +46,9 @@
   "ghost_seal": {
     "algorithm": "Ed25519",
     "verification_key": "824b4a44672cfdd924f73b444b10dafb5a5d7cfc8dfa9518dd9dd33bedd8467a",
-    "signature": "27e4ad32fab0d4de712e619ad121b3592c09236b094eca4acf6e61b41423ee0256c318f357790291c7f0e77030c21c87d04639178a43b7d92373f594ed03ee09",
-    "signed_at": "2026-04-10T05:55:24.619458+00:00",
-    "ceremony_epoch": "epoch-20260410-055524",
+    "signature": "8ec032a1539223334ed11ce10fd1dc158572b0e3327599eeb0ad53fa3dcc19c7a158a517409020347a85cee67eb359a2a88c6388836e37fe7beb5fe3c23a610f",
+    "signed_at": "2026-04-12T13:59:32.799360+00:00",
+    "ceremony_epoch": "epoch-20260412-135932",
     "share_threshold": "2-of-3"
   }
 }
