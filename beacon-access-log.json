@@ -54,9 +54,22 @@
       "beacon_id": "AEGIS-ALPHA-001",
       "registry_status": "REGISTERED",
       "algorithm": "ML-DSA-65+Merkle-SHA3-256"
+    },
+    {
+      "entry_id": "LOG-B825C590EB96",
+      "chain_hash": "639bd753a0129b39cfc356421d70dcf9b11347ac114b39341e82f863137eb753",
+      "prev_hash": "6b43cab96d3a703b2560149fbdf901ec209d3207ecf4df69350f12ea12f30b13",
+      "timestamp": "2026-04-12T15:48:27.722Z",
+      "endpoint": "/verify",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+      "ip_prefix": "52.144.37.x",
+      "result": "VERIFIED",
+      "beacon_id": "AEGIS-ALPHA-001",
+      "registry_status": "REGISTERED",
+      "algorithm": "ML-DSA-65+Merkle-SHA3-256"
     }
   ],
-  "entry_count": 4,
+  "entry_count": 5,
   "created": "2026-04-12T15:17:28.389Z",
-  "last_updated": "2026-04-12T15:48:26.319Z"
+  "last_updated": "2026-04-12T15:48:27.722Z"
 }
