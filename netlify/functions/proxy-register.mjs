@@ -176,28 +176,11 @@ export const handler = async (event) => {
       `AETHER: proxy-host manifest for ${beaconId}`
     );
   } catch (e) {
-    return reply(500, { status: "ERROR", reason: "MANIFEST_WRITE_FAILED", message: e.message });
+    console.error("[AETHER] MANIFEST_WRITE_FAILED:", e.message);
+    return reply(500, { status: "ERROR", reason: "MANIFEST_WRITE_FAILED" });
   }
 
-  // ── Read and update registry ───────────────────────────────────────────────
-  let registry, regSha;
-  try {
-    ({ registry, sha: regSha } = await readRegistry());
-  } catch (e) {
-    return reply(500, { status: "ERROR", reason: "REGISTRY_READ_FAILED", message: e.message });
-  }
-
-  const alreadyRegistered = registry.nodes.find(n => n.beacon_id === beaconId);
-  if (alreadyRegistered) {
-    return reply(200, {
-      status:      "ALREADY_REGISTERED",
-      beacon_id:   beaconId,
-      hosted_url:  hostedUrl,
-      manifest_url: `${hostedUrl}aether.json`,
-      message:     "Manifest updated. Node already in registry.",
-    });
-  }
-
+  // ── Read and update registry — retry on SHA conflict ──────────────────────
   const today = new Date().toISOString().split("T")[0];
   const gs    = manifest.ghost_seal;
 
@@ -219,19 +202,49 @@ export const handler = async (event) => {
     note:                 "Proxy-hosted by AEGIS-ALPHA-001. Agent operates in sandboxed environment.",
   };
 
-  registry.nodes.push(newNode);
-  registry.last_updated = today;
-  registry.mesh_status  = `ACTIVE — ${registry.nodes.length} node${registry.nodes.length !== 1 ? "s" : ""}.`;
+  let registry;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let regSha;
+    try {
+      ({ registry, sha: regSha } = await readRegistry());
+    } catch (e) {
+      console.error("[AETHER] REGISTRY_READ_FAILED:", e.message);
+      return reply(500, { status: "ERROR", reason: "REGISTRY_READ_FAILED" });
+    }
 
-  try {
-    await githubPut(
-      REGISTRY_PATH,
-      registry,
-      regSha,
-      `AETHER: proxy-register ${beaconId} [${today}]`
-    );
-  } catch (e) {
-    return reply(500, { status: "ERROR", reason: "REGISTRY_WRITE_FAILED", message: e.message });
+    const alreadyRegistered = registry.nodes.find(n => n.beacon_id === beaconId);
+    if (alreadyRegistered) {
+      return reply(200, {
+        status:      "ALREADY_REGISTERED",
+        beacon_id:   beaconId,
+        hosted_url:  hostedUrl,
+        manifest_url: `${hostedUrl}aether.json`,
+        message:     "Manifest updated. Node already in registry.",
+      });
+    }
+
+    const updated = JSON.parse(JSON.stringify(registry));
+    updated.nodes.push(newNode);
+    updated.last_updated = today;
+    updated.mesh_status  = `ACTIVE — ${updated.nodes.length} node${updated.nodes.length !== 1 ? "s" : ""}.`;
+
+    try {
+      await githubPut(
+        REGISTRY_PATH,
+        updated,
+        regSha,
+        `AETHER: proxy-register ${beaconId} [${today}]`
+      );
+      registry = updated;
+      break;
+    } catch (e) {
+      if (e.message.includes("409") && attempt < 2) {
+        console.log(`[AETHER] SHA conflict on /proxy-register attempt ${attempt + 1}, retrying...`);
+        continue;
+      }
+      console.error("[AETHER] REGISTRY_WRITE_FAILED:", e.message);
+      return reply(500, { status: "ERROR", reason: "REGISTRY_WRITE_FAILED" });
+    }
   }
 
   console.log(`[AETHER] Proxy-registered: ${beaconId} at ${hostedUrl}`);

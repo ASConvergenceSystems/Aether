@@ -159,11 +159,12 @@ export const handler = async (event) => {
 
   // ── GET — retrieve inbox ──────────────────────────────────────────────────
   if (event.httpMethod === "GET") {
-    let inbox, sha;
+    let inbox;
     try {
-      ({ inbox, sha } = await readInbox(beaconId));
+      ({ inbox } = await readInbox(beaconId));
     } catch (e) {
-      return reply(500, { status: "ERROR", reason: "INBOX_READ_FAILED", message: e.message });
+      console.error("[AETHER] INBOX_READ_FAILED:", e.message);
+      return reply(500, { status: "ERROR", reason: "INBOX_READ_FAILED" });
     }
 
     return reply(200, {
