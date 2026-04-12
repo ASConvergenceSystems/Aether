@@ -75,6 +75,17 @@
     Access-Control-Allow-Origin = "*"
 
 [[headers]]
+  for = "/sitemap.xml"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Content-Type = "application/xml; charset=utf-8"
+
+[[headers]]
+  for = "/beacon-access-log.json"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+
+[[headers]]
   for = "/register"
   [headers.values]
     Access-Control-Allow-Origin  = "*"

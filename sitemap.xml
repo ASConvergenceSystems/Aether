@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+
+  <!-- Beacon root -->
+  <url>
+    <loc>https://aetherbeacon.io/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+  </url>
+
+  <!-- AETHER Standard (founding specification) -->
+  <url>
+    <loc>https://aetherbeacon.io/standard</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <!-- Machine-readable artifacts -->
+  <url>
+    <loc>https://aetherbeacon.io/aether.json</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <url>
+    <loc>https://aetherbeacon.io/aether-registry.json</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://aetherbeacon.io/agent.json</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Public transparency log — hash-chained, IP-masked -->
+  <url>
+    <loc>https://aetherbeacon.io/beacon-access-log.json</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+</urlset>
