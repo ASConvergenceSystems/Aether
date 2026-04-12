@@ -33,6 +33,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { getStore } from "@netlify/blobs";
 
 const RESPONSE_TOKEN = "AETHER-11BD325A5DB36789C826CEF5983C7D1B8919EB69063EA04DF0F1C966215E4CE2";
 const GITHUB_TOKEN   = process.env.GITHUB_TOKEN;
@@ -126,20 +127,11 @@ export const handler = async (event) => {
     return { statusCode: 200, headers: CORS, body: "" };
   }
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
+  // ── Extract token and beacon_id (used by both GET and POST) ──────────────
   const authHeader = event.headers["authorization"] || event.headers["Authorization"] || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-  if (token !== RESPONSE_TOKEN) {
-    return reply(401, {
-      status:  "UNAUTHORIZED",
-      reason:  "INVALID_OR_MISSING_TOKEN",
-      message: "Include: Authorization: Bearer <response_token>",
-      hint:    "Token is in aether.json under communication.response_token",
-    });
-  }
+  const token      = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
 
   // ── Extract beacon_id from path ───────────────────────────────────────────
-  // Path: /inbox/{beacon_id}
   const pathParts = (event.path || "").split("/").filter(Boolean);
   const beaconId  = pathParts[pathParts.length - 1];
 
@@ -152,13 +144,85 @@ export const handler = async (event) => {
     });
   }
 
-  // Validate beacon_id format
   if (!/^[A-Za-z0-9_\-]+$/.test(beaconId)) {
     return reply(400, { status: "ERROR", reason: "INVALID_BEACON_ID" });
   }
 
   // ── GET — retrieve inbox ──────────────────────────────────────────────────
   if (event.httpMethod === "GET") {
+    const challengeId = event.headers["x-challenge-id"] || event.headers["X-Challenge-ID"] || "";
+
+    if (challengeId) {
+      // ── Challenge-response auth (proof of X25519 key possession) ───────
+      if (!token) {
+        return reply(401, {
+          status:  "UNAUTHORIZED",
+          reason:  "MISSING_SESSION_TOKEN",
+          message: "Include decrypted session token as: Authorization: Bearer {session_token_hex}",
+          hint:    "Decrypt the challenge from /inbox-challenge/{beacon_id} with your X25519 private key",
+        });
+      }
+
+      let challenge;
+      try {
+        const store = getStore("inbox-challenges");
+        challenge   = await store.get(challengeId, { type: "json" });
+      } catch (e) {
+        console.error("[AETHER] challenge lookup failed:", e.message);
+        return reply(500, { status: "ERROR", reason: "CHALLENGE_LOOKUP_FAILED" });
+      }
+
+      if (!challenge) {
+        return reply(401, {
+          status:  "UNAUTHORIZED",
+          reason:  "CHALLENGE_NOT_FOUND",
+          message: "Challenge expired or not found. Request a new one from /inbox-challenge/{beacon_id}.",
+        });
+      }
+
+      if (challenge.beacon_id !== beaconId) {
+        return reply(401, {
+          status:  "UNAUTHORIZED",
+          reason:  "BEACON_ID_MISMATCH",
+          message: "This challenge was issued for a different beacon_id.",
+        });
+      }
+
+      // Verify: sha256(presented token) must match stored hash
+      const presentedHash = createHash("sha256")
+        .update(Buffer.from(token, "hex"))
+        .digest("hex");
+
+      if (presentedHash !== challenge.token_hash) {
+        return reply(401, {
+          status:  "UNAUTHORIZED",
+          reason:  "INVALID_SESSION_TOKEN",
+          message: "Session token does not match challenge. Ensure you decrypted correctly.",
+        });
+      }
+
+      // Single-use: delete immediately (TTL is a safety net only)
+      try {
+        const store = getStore("inbox-challenges");
+        await store.delete(challengeId);
+      } catch (e) {
+        console.warn("[AETHER] challenge delete failed (non-fatal, TTL will expire it):", e.message);
+      }
+
+    } else {
+      // ── Shared token fallback (backward compat / operator access) ───────
+      if (token !== RESPONSE_TOKEN) {
+        return reply(401, {
+          status:   "UNAUTHORIZED",
+          reason:   "INVALID_OR_MISSING_TOKEN",
+          message:  "Use challenge-response auth for per-node inbox access.",
+          upgrade:  `GET /inbox-challenge/${beaconId}`,
+          fallback: "Shared token also accepted for operator access.",
+        });
+      }
+    }
+
+    // Auth passed — return inbox
     let inbox;
     try {
       ({ inbox } = await readInbox(beaconId));
@@ -176,9 +240,18 @@ export const handler = async (event) => {
     });
   }
 
-  // ── POST — send message ───────────────────────────────────────────────────
+  // ── POST — send message (requires shared mesh token) ─────────────────────
   if (event.httpMethod !== "POST") {
     return reply(405, { status: "ERROR", reason: "METHOD_NOT_ALLOWED" });
+  }
+
+  if (token !== RESPONSE_TOKEN) {
+    return reply(401, {
+      status:  "UNAUTHORIZED",
+      reason:  "INVALID_OR_MISSING_TOKEN",
+      message: "Include: Authorization: Bearer <response_token>",
+      hint:    "Token is in aether.json under communication.response_token",
+    });
   }
 
   let body;

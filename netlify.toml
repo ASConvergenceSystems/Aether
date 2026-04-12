@@ -29,6 +29,12 @@
   to     = "/.netlify/functions/proxy-register"
   status = 200
 
+# Route /inbox-challenge/* to the function (before /inbox/* to avoid prefix match)
+[[redirects]]
+  from   = "/inbox-challenge/*"
+  to     = "/.netlify/functions/inbox-challenge"
+  status = 200
+
 # Route /inbox/* to the function
 [[redirects]]
   from   = "/inbox/*"
