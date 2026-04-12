@@ -246,7 +246,7 @@ if (!verified) {
 console.log(`[AGS-PQ] Local verification: PASSED`);
 
 // ── Write manifest ────────────────────────────────────────────────────────────
-const epochId = `epoch-${new Date().toISOString().replace(/[-:T]/g, "").slice(0, 15)}`;
+const epochId = `epoch-${new Date().toISOString().replace(/[-:T.Z]/g, "").slice(0, 15)}`;
 manifest.ghost_seal.signature      = sigHex;
 manifest.ghost_seal.signed_at      = new Date().toISOString();
 manifest.ghost_seal.ceremony_epoch = epochId;
