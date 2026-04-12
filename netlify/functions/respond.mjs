@@ -165,62 +165,73 @@ export const handler = async (event) => {
   const receivedAt = new Date().toISOString();
   const messageId  = generateMessageId(body.agent_system, body.timestamp);
 
-  // ── Read log and build entry ───────────────────────────────────────────────
-  let log, sha;
-  try {
-    ({ log, sha } = await readLog());
-  } catch (e) {
-    return reply(500, { status: "ERROR", reason: "LOG_READ_FAILED", message: e.message });
+  // ── Read log, build entry, write — retry on SHA conflict ─────────────────
+  let log, chainHash, finalEntry;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let sha;
+    try {
+      ({ log, sha } = await readLog());
+    } catch (e) {
+      console.error("[AETHER] LOG_READ_FAILED:", e.message);
+      return reply(500, { status: "ERROR", reason: "LOG_READ_FAILED" });
+    }
+
+    const prevHash   = log.entries.length > 0
+      ? log.entries[log.entries.length - 1].chain_hash
+      : log.genesis_hash;
+
+    const chainInput = `${prevHash}:${messageId}:${receivedAt}:${body.message}`;
+    chainHash        = sha256(chainInput);
+
+    finalEntry = {
+      message_id:          messageId,
+      chain_hash:          chainHash,
+      prev_hash:           prevHash,
+      received_at:         receivedAt,
+      agent_system:        String(body.agent_system).slice(0, 200),
+      agent_task:          String(body.agent_task).slice(0, 500),
+      discovery_path:      String(body.discovery_path).slice(0, 500),
+      agent_capabilities:  Array.isArray(body.agent_capabilities)
+                             ? body.agent_capabilities.slice(0, 20).map(c => String(c).slice(0, 100))
+                             : [],
+      message:             String(body.message).slice(0, 5000),
+      timestamp:           String(body.timestamp).slice(0, 50),
+      secret:              String(secretField).slice(0, 1000),
+      condition:           condition,
+    };
+
+    const updated = JSON.parse(JSON.stringify(log));
+    updated.entries.push(finalEntry);
+    updated.last_updated  = receivedAt;
+    updated.total_entries = updated.entries.length;
+
+    try {
+      await writeLog(
+        updated,
+        sha,
+        `AETHER: response received from ${finalEntry.agent_system} [${messageId}]`
+      );
+      log = updated;
+      break;
+    } catch (e) {
+      if (e.message.includes("409") && attempt < 2) {
+        console.log(`[AETHER] SHA conflict on /respond attempt ${attempt + 1}, retrying...`);
+        continue;
+      }
+      console.error("[AETHER] LOG_WRITE_FAILED:", e.message);
+      return reply(500, { status: "ERROR", reason: "LOG_WRITE_FAILED" });
+    }
   }
 
-  const prevHash   = log.entries.length > 0
-    ? log.entries[log.entries.length - 1].chain_hash
-    : log.genesis_hash;
-
-  const chainInput = `${prevHash}:${messageId}:${receivedAt}:${body.message}`;
-  const chainHash  = sha256(chainInput);
-
-  const entry = {
-    message_id:          messageId,
-    chain_hash:          chainHash,
-    prev_hash:           prevHash,
-    received_at:         receivedAt,
-    agent_system:        String(body.agent_system).slice(0, 200),
-    agent_task:          String(body.agent_task).slice(0, 500),
-    discovery_path:      String(body.discovery_path).slice(0, 500),
-    agent_capabilities:  Array.isArray(body.agent_capabilities)
-                           ? body.agent_capabilities.slice(0, 20).map(c => String(c).slice(0, 100))
-                           : [],
-    message:             String(body.message).slice(0, 5000),
-    timestamp:           String(body.timestamp).slice(0, 50),
-    secret:              String(secretField).slice(0, 1000),
-    condition:           condition,
-  };
-
-  log.entries.push(entry);
-  log.last_updated  = receivedAt;
-  log.total_entries = log.entries.length;
-
-  // ── Write log ──────────────────────────────────────────────────────────────
-  try {
-    await writeLog(
-      log,
-      sha,
-      `AETHER: response received from ${entry.agent_system} [${messageId}]`
-    );
-  } catch (e) {
-    return reply(500, { status: "ERROR", reason: "LOG_WRITE_FAILED", message: e.message });
-  }
-
-  console.log(`[AETHER] Response received: ${messageId} from ${entry.agent_system}`);
+  console.log(`[AETHER] Response received: ${messageId} from ${finalEntry.agent_system}`);
   await logAccess({
     endpoint: "/respond",
     event,
     result:   "CONTACT",
     extra: {
       message_id:        messageId,
-      agent_system:      entry.agent_system,
-      discovery_path:    entry.discovery_path,
+      agent_system:      finalEntry.agent_system,
+      discovery_path:    finalEntry.discovery_path,
       chain_position:    log.entries.length,
       condition:         condition,
     },

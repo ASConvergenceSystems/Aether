@@ -228,45 +228,56 @@ export const handler = async (event) => {
   const receivedAt = new Date().toISOString();
   const messageId  = "MSG-" + sha256(`${sender_beacon_id}:${beaconId}:${receivedAt}:${ct.slice(0, 32)}`).slice(0, 16).toUpperCase();
 
-  // Read inbox
-  let inbox, sha;
-  try {
-    ({ inbox, sha } = await readInbox(beaconId));
-  } catch (e) {
-    return reply(500, { status: "ERROR", reason: "INBOX_READ_FAILED", message: e.message });
-  }
+  // ── Read inbox, append message, write — retry on SHA conflict ──────────────
+  let inbox, chainHash;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let sha;
+    try {
+      ({ inbox, sha } = await readInbox(beaconId));
+    } catch (e) {
+      console.error("[AETHER] INBOX_READ_FAILED:", e.message);
+      return reply(500, { status: "ERROR", reason: "INBOX_READ_FAILED" });
+    }
 
-  const prevHash  = inbox.messages.length > 0
-    ? inbox.messages[inbox.messages.length - 1].chain_hash
-    : sha256("AETHER-INBOX-GENESIS");
+    const prevHash = inbox.messages.length > 0
+      ? inbox.messages[inbox.messages.length - 1].chain_hash
+      : sha256("AETHER-INBOX-GENESIS");
 
-  const chainHash = sha256(`${prevHash}:${messageId}:${receivedAt}`);
+    chainHash = sha256(`${prevHash}:${messageId}:${receivedAt}`);
 
-  inbox.messages.push({
-    message_id:        messageId,
-    chain_hash:        chainHash,
-    prev_hash:         prevHash,
-    received_at:       receivedAt,
-    sender_beacon_id:  String(sender_beacon_id).slice(0, 100),
-    hint:              hint ? String(hint).slice(0, 200) : null,
-    encrypted:         true,
-    e_pk:              String(e_pk).slice(0, 128),
-    nonce:             String(nonce).slice(0, 64),
-    ct:                String(ct).slice(0, 100000),
-  });
+    const updated = JSON.parse(JSON.stringify(inbox));
+    updated.messages.push({
+      message_id:        messageId,
+      chain_hash:        chainHash,
+      prev_hash:         prevHash,
+      received_at:       receivedAt,
+      sender_beacon_id:  String(sender_beacon_id).slice(0, 100),
+      hint:              hint ? String(hint).slice(0, 200) : null,
+      encrypted:         true,
+      e_pk:              String(e_pk).slice(0, 128),
+      nonce:             String(nonce).slice(0, 64),
+      ct:                String(ct).slice(0, 100000),
+    });
+    updated.last_updated  = receivedAt;
+    updated.message_count = updated.messages.length;
 
-  inbox.last_updated  = receivedAt;
-  inbox.message_count = inbox.messages.length;
-
-  try {
-    await writeInbox(
-      beaconId,
-      inbox,
-      sha,
-      `AETHER: inbox message ${messageId} for ${beaconId} from ${sender_beacon_id}`
-    );
-  } catch (e) {
-    return reply(500, { status: "ERROR", reason: "INBOX_WRITE_FAILED", message: e.message });
+    try {
+      await writeInbox(
+        beaconId,
+        updated,
+        sha,
+        `AETHER: inbox message ${messageId} for ${beaconId} from ${sender_beacon_id}`
+      );
+      inbox = updated;
+      break;
+    } catch (e) {
+      if (e.message.includes("409") && attempt < 2) {
+        console.log(`[AETHER] SHA conflict on /inbox attempt ${attempt + 1}, retrying...`);
+        continue;
+      }
+      console.error("[AETHER] INBOX_WRITE_FAILED:", e.message);
+      return reply(500, { status: "ERROR", reason: "INBOX_WRITE_FAILED" });
+    }
   }
 
   console.log(`[AETHER] Inbox: ${messageId} -> ${beaconId} from ${sender_beacon_id}`);

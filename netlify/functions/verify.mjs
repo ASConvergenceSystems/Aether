@@ -211,6 +211,18 @@ export const handler = async (event) => {
     });
   }
 
+  // Only Ed25519 is supported — reject unknown algorithms
+  const declaredAlgorithm = (algorithm || "Ed25519").trim();
+  if (declaredAlgorithm !== "Ed25519") {
+    return reply(200, {
+      seal_status: "UNSUPPORTED_ALGORITHM",
+      beacon_id:   manifest.beacon_id,
+      node_url:    targetUrl,
+      algorithm:   declaredAlgorithm,
+      message:     `Unsupported ghost_seal algorithm: ${declaredAlgorithm}. Only Ed25519 is supported.`,
+    });
+  }
+
   // Reconstruct canonical form (exclude ghost_seal.signature per §15.4.3)
   const manifestCopy = JSON.parse(JSON.stringify(manifest));
   manifestCopy.ghost_seal.signature = null;

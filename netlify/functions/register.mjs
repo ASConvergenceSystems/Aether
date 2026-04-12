@@ -209,25 +209,7 @@ export const handler = async (event) => {
 
   const { manifest, normalizedUrl } = validation;
 
-  // Read registry
-  let registry, sha;
-  try {
-    ({ registry, sha } = await readRegistry());
-  } catch (e) {
-    return reply(500, { status: "ERROR", reason: "REGISTRY_READ_FAILED", message: e.message });
-  }
-
-  // Duplicate check
-  const existing = registry.nodes.find(n => n.beacon_id === manifest.beacon_id);
-  if (existing) {
-    return reply(409, {
-      status: "ALREADY_REGISTERED",
-      beacon_id: manifest.beacon_id,
-      message: "This beacon_id is already in the registry.",
-    });
-  }
-
-  // Build registry entry from manifest
+  // ── Read registry, append node, write — retry on SHA conflict ──────────────
   const today = new Date().toISOString().split("T")[0];
   const gs = manifest.ghost_seal;
   const newNode = {
@@ -250,19 +232,47 @@ export const handler = async (event) => {
     note:            "Auto-registered via AETHER mesh propagation protocol.",
   };
 
-  registry.nodes.push(newNode);
-  registry.last_updated  = today;
-  registry.mesh_status   = `ACTIVE — ${registry.nodes.length} node${registry.nodes.length !== 1 ? "s" : ""}.`;
+  let registry;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let sha;
+    try {
+      ({ registry, sha } = await readRegistry());
+    } catch (e) {
+      console.error("[AETHER] REGISTRY_READ_FAILED:", e.message);
+      return reply(500, { status: "ERROR", reason: "REGISTRY_READ_FAILED" });
+    }
 
-  // Commit to GitHub
-  try {
-    await writeRegistry(
-      registry,
-      sha,
-      `AETHER: auto-register node ${manifest.beacon_id} [${today}]`
-    );
-  } catch (e) {
-    return reply(500, { status: "ERROR", reason: "REGISTRY_WRITE_FAILED", message: e.message });
+    // Duplicate check (re-checked each attempt in case another request registered first)
+    const existing = registry.nodes.find(n => n.beacon_id === manifest.beacon_id);
+    if (existing) {
+      return reply(409, {
+        status: "ALREADY_REGISTERED",
+        beacon_id: manifest.beacon_id,
+        message: "This beacon_id is already in the registry.",
+      });
+    }
+
+    const updated = JSON.parse(JSON.stringify(registry));
+    updated.nodes.push(newNode);
+    updated.last_updated = today;
+    updated.mesh_status  = `ACTIVE — ${updated.nodes.length} node${updated.nodes.length !== 1 ? "s" : ""}.`;
+
+    try {
+      await writeRegistry(
+        updated,
+        sha,
+        `AETHER: auto-register node ${manifest.beacon_id} [${today}]`
+      );
+      registry = updated;
+      break;
+    } catch (e) {
+      if (e.message.includes("409") && attempt < 2) {
+        console.log(`[AETHER] SHA conflict on /register attempt ${attempt + 1}, retrying...`);
+        continue;
+      }
+      console.error("[AETHER] REGISTRY_WRITE_FAILED:", e.message);
+      return reply(500, { status: "ERROR", reason: "REGISTRY_WRITE_FAILED" });
+    }
   }
 
   console.log(`[AETHER] Registered: ${manifest.beacon_id} at ${normalizedUrl}`);
