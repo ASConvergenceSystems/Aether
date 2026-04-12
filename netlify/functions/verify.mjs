@@ -336,6 +336,7 @@ export const handler = async (event) => {
 
   // ── Route by algorithm ────────────────────────────────────────────────────
   let valid = false;
+  let debugMerkleRoot = null;
 
   if (declaredAlgorithm === "Ed25519") {
     // Classical path — sign over compact canonical JSON
@@ -349,6 +350,7 @@ export const handler = async (event) => {
     const manifestCopy = JSON.parse(JSON.stringify(manifest));
     manifestCopy.ghost_seal.signature = null;
     const merkleRoot = manifestMerkleRoot(manifestCopy);
+    debugMerkleRoot = merkleRoot.toString("hex");
     valid = verifyMLDSA65(verification_key, signature, merkleRoot);
 
   } else {
@@ -376,6 +378,8 @@ export const handler = async (event) => {
     registry_status:  registryEntry ? "REGISTERED" : "UNREGISTERED",
     verified_at:      new Date().toISOString(),
   };
+
+  if (debugMerkleRoot) result._debug_merkle_root = debugMerkleRoot;
 
   if (!valid) {
     result.message = "Ghost Seal signature verification FAILED. Treat this beacon as UNTRUSTED.";
