@@ -34,7 +34,9 @@
 
 import { createHash } from "node:crypto";
 import { getStore } from "@netlify/blobs";
+import { verifyMeshToken, extractBeaconId } from "./lib/mesh-auth.mjs";
 
+// Legacy shared token — kept only for GET inbox fallback (operator access)
 const RESPONSE_TOKEN = "AETHER-11BD325A5DB36789C826CEF5983C7D1B8919EB69063EA04DF0F1C966215E4CE2";
 const GITHUB_TOKEN   = process.env.GITHUB_TOKEN;
 const GITHUB_OWNER   = process.env.GITHUB_OWNER;
@@ -245,12 +247,23 @@ export const handler = async (event) => {
     return reply(405, { status: "ERROR", reason: "METHOD_NOT_ALLOWED" });
   }
 
-  if (token !== RESPONSE_TOKEN) {
+  // POST requires a per-node mesh token tied to the sender's beacon_id.
+  // Get your token first: GET /mesh-token/{your_beacon_id}
+  const senderBeaconId = extractBeaconId(event);
+  if (!senderBeaconId) {
     return reply(401, {
       status:  "UNAUTHORIZED",
-      reason:  "INVALID_OR_MISSING_TOKEN",
-      message: "Include: Authorization: Bearer <response_token>",
-      hint:    "Token is in aether.json under communication.response_token",
+      reason:  "MISSING_BEACON_ID",
+      message: "Include your beacon_id as: X-Beacon-ID: {your_beacon_id}",
+      hint:    "Get your mesh token first: GET /mesh-token/{your_beacon_id}",
+    });
+  }
+  if (!verifyMeshToken(senderBeaconId, token)) {
+    return reply(401, {
+      status:  "UNAUTHORIZED",
+      reason:  "INVALID_MESH_TOKEN",
+      message: "Mesh token verification failed for the presented beacon_id.",
+      hint:    "Obtain your per-node token: GET /mesh-token/{your_beacon_id} — decrypt with your private key.",
     });
   }
 
@@ -261,19 +274,29 @@ export const handler = async (event) => {
     return reply(400, { status: "ERROR", reason: "INVALID_JSON" });
   }
 
-  const { sender_beacon_id, encrypted, e_pk, nonce, ct, hint } = body;
+  const { sender_beacon_id, encrypted, e_pk, ct_kem, nonce, ct, hint } = body;
 
   if (!sender_beacon_id) {
     return reply(400, { status: "ERROR", reason: "MISSING_SENDER_BEACON_ID" });
   }
 
-  // Must be encrypted
-  if (!encrypted || !e_pk || !nonce || !ct) {
+  // Token beacon_id must match the declared sender_beacon_id — prevents spoofing
+  if (String(sender_beacon_id) !== senderBeaconId) {
+    return reply(403, {
+      status:  "FORBIDDEN",
+      reason:  "SENDER_MISMATCH",
+      message: "sender_beacon_id in body does not match X-Beacon-ID header.",
+      hint:    "Your token is bound to your beacon_id. You cannot send as another node.",
+    });
+  }
+
+  // Must be encrypted; e_pk (X25519) and ct_kem (ML-KEM-768) are both accepted
+  if (!encrypted || (!e_pk && !ct_kem) || !nonce || !ct) {
     return reply(400, {
       status:  "ERROR",
       reason:  "ENCRYPTION_REQUIRED",
-      message: "All inbox messages must be encrypted. Include: encrypted=true, e_pk, nonce, ct",
-      spec:    "AGS §15.7 — fetch recipient aether.json encryption.public_key, use X25519+ChaCha20-Poly1305",
+      message: "All inbox messages must be encrypted. Include: encrypted=true, nonce, ct, and either e_pk (X25519) or ct_kem (ML-KEM-768)",
+      spec:    "AGS §15.7 / §15.7.2 — fetch recipient aether.json encryption.public_key and algorithm",
     });
   }
 
@@ -320,7 +343,7 @@ export const handler = async (event) => {
     chainHash = sha256(`${prevHash}:${messageId}:${receivedAt}`);
 
     const updated = JSON.parse(JSON.stringify(inbox));
-    updated.messages.push({
+    const msg = {
       message_id:        messageId,
       chain_hash:        chainHash,
       prev_hash:         prevHash,
@@ -328,10 +351,13 @@ export const handler = async (event) => {
       sender_beacon_id:  String(sender_beacon_id).slice(0, 100),
       hint:              hint ? String(hint).slice(0, 200) : null,
       encrypted:         true,
-      e_pk:              String(e_pk).slice(0, 128),
       nonce:             String(nonce).slice(0, 64),
       ct:                String(ct).slice(0, 100000),
-    });
+    };
+    // Store whichever key-exchange field the sender provided
+    if (ct_kem)  msg.ct_kem = String(ct_kem).slice(0, 2200); // ML-KEM-768: 1088 bytes = 2176 hex
+    if (e_pk)    msg.e_pk   = String(e_pk).slice(0, 128);    // X25519: 32 bytes = 64 hex
+    updated.messages.push(msg);
     updated.last_updated  = receivedAt;
     updated.message_count = updated.messages.length;
 

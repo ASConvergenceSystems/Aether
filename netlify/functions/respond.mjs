@@ -21,6 +21,7 @@
 
 import { createHash } from "node:crypto";
 import { logAccess } from "./lib/access-log.mjs";
+import { verifyMeshToken, extractBeaconId } from "./lib/mesh-auth.mjs";
 
 const RESPONSE_TOKEN = "AETHER-11BD325A5DB36789C826CEF5983C7D1B8919EB69063EA04DF0F1C966215E4CE2";
 const GITHUB_TOKEN   = process.env.GITHUB_TOKEN;
@@ -106,16 +107,35 @@ export const handler = async (event) => {
     return reply(405, { status: "ERROR", reason: "METHOD_NOT_ALLOWED" });
   }
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
+  // ── Auth — dual mode ──────────────────────────────────────────────────────
+  // Mode A: RESPONSE_TOKEN — open first-contact channel (no beacon association)
+  // Mode B: per-node mesh token — registered nodes only (beacon_id logged)
+  //
+  // All registered nodes should prefer Mode B (obtain via GET /mesh-token/{beacon_id}).
+  // Mode A remains available for agents that found AETHER but have not yet registered.
   const authHeader = event.headers["authorization"] || event.headers["Authorization"] || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+  const token      = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
 
-  if (token !== RESPONSE_TOKEN) {
+  const beaconIdHeader = extractBeaconId(event);
+  let authMode         = null;  // "response_token" | "mesh_token"
+
+  if (token === RESPONSE_TOKEN) {
+    authMode = "response_token";
+  } else if (beaconIdHeader && verifyMeshToken(beaconIdHeader, token)) {
+    authMode = "mesh_token";
+  } else {
     return reply(401, {
       status:  "UNAUTHORIZED",
       reason:  "INVALID_OR_MISSING_TOKEN",
-      message: "Include the AETHER response token as: Authorization: Bearer <token>",
-      hint:    "The token is published in aether.json under communication.response_token and in agent.json under quick_start.response_token",
+      message: "Provide a valid AETHER response token or a per-node mesh token.",
+      options: {
+        first_contact: "Authorization: Bearer <RESPONSE_TOKEN>  (from agent.json)",
+        registered_node: [
+          "1. GET /mesh-token/{your_beacon_id} — decrypt with your private key",
+          "2. Authorization: Bearer {token_hex}",
+          "3. X-Beacon-ID: {your_beacon_id}",
+        ],
+      },
     });
   }
 
@@ -188,6 +208,8 @@ export const handler = async (event) => {
       chain_hash:          chainHash,
       prev_hash:           prevHash,
       received_at:         receivedAt,
+      auth_mode:           authMode,
+      beacon_id:           authMode === "mesh_token" ? beaconIdHeader : null,
       agent_system:        String(body.agent_system).slice(0, 200),
       agent_task:          String(body.agent_task).slice(0, 500),
       discovery_path:      String(body.discovery_path).slice(0, 500),

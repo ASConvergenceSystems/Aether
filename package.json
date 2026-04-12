@@ -8,6 +8,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@netlify/blobs": "^8.1.0"
+    "@netlify/blobs": "^8.1.0",
+    "@noble/post-quantum": "^0.2.0"
   }
 }
