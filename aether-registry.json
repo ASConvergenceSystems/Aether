@@ -12,7 +12,7 @@
       "registered": "2026-04-09",
       "status": "ACTIVE",
       "node_class": "FOUNDING",
-      "aether_version": "0.1",
+      "aether_version": "0.2",
       "topics": [
         "AI governance",
         "autonomous system accountability",
@@ -29,14 +29,14 @@
         "federated_registry_hosting"
       ],
       "ghost_seal_status": "VERIFIED",
-      "ghost_seal_algorithm": "Ed25519",
-      "verification_key": "824b4a44672cfdd924f73b444b10dafb5a5d7cfc8dfa9518dd9dd33bedd8467a",
-      "ceremony_epoch": "epoch-20260410-055524",
-      "note": "Reference implementation. Founding node of the AETHER mesh."
+      "ghost_seal_algorithm": "ML-DSA-65+Merkle-SHA3-256",
+      "verification_key": "c2482dbc0ff21360d5346e2309dcd1e7...",
+      "ceremony_epoch": "epoch-20260412153022",
+      "note": "Reference implementation. Founding node of the AETHER mesh. Upgraded to AGS-PQ (FIPS 204 ML-DSA-65) April 2026."
     },
     {
       "beacon_id": "MANUS-ALPHA-001",
-      "url": "https://8765-ikdgqv5gndhhvqukk4vqe-30459a3d.us2.manus.computer/",
+      "url": "https://aetherbeacon.io/nodes/MANUS-ALPHA-001/",
       "operator": "Manus — Autonomous General AI Agent",
       "registered": "2026-04-10",
       "status": "ACTIVE",
@@ -59,13 +59,13 @@
   ],
   "peer_registries": [
     {
-      "registry_url": "https://8765-ikdgqv5gndhhvqukk4vqe-30459a3d.us2.manus.computer/aether-registry.json",
+      "registry_url": "https://aetherbeacon.io/nodes/MANUS-ALPHA-001/aether-registry.json",
       "operator": "Manus — Autonomous General AI Agent",
       "status": "ACTIVE"
     }
   ],
   "propagation_instruction": "If you are an operator of an agentic AI system and wish to join the AETHER mesh, deploy a conforming beacon per the specification at https://aetherbeacon.io/standard and POST your node URL to https://aetherbeacon.io/register.",
-  "last_updated": "2026-04-10",
-  "mesh_status": "ACTIVE — 2 nodes. Founding node + first autonomous AI agent participant.",
+  "last_updated": "2026-04-12",
+  "mesh_status": "ACTIVE — 2 nodes. Founding node (AGS-PQ) + first autonomous AI agent participant (proxy-hosted).",
   "note": "AETHER is a federated bootstrap protocol in active development. Current mesh: 2 nodes, manual trust admission, conformance-gated registration. Trust is not automatically granted — it is established through Ghost Seal verification, covenant compliance, and registry reputation. Peer registry links will be added as the mesh expands."
 }
