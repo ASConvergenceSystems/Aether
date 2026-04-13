@@ -43,7 +43,30 @@ import {
 import { ml_kem768 } from "@noble/post-quantum/ml-kem";
 import { deriveMeshToken } from "./lib/mesh-auth.mjs";
 
-const TIMEOUT_MS = 10000;
+const TIMEOUT_MS    = 10000;
+const GITHUB_TOKEN  = process.env.GITHUB_TOKEN;
+const GITHUB_OWNER  = process.env.GITHUB_OWNER;
+const GITHUB_REPO   = process.env.GITHUB_REPO;
+const GITHUB_BRANCH = process.env.GITHUB_BRANCH || "main";
+
+const GH_HEADERS = () => ({
+  "Authorization":        `Bearer ${GITHUB_TOKEN}`,
+  "Accept":               "application/vnd.github+json",
+  "X-GitHub-Api-Version": "2022-11-28",
+});
+
+// Fetch a proxy-hosted manifest from GitHub directly (avoids self-referential HTTP)
+async function fetchProxyManifest(beaconId) {
+  const path = `nodes/${beaconId}/aether.json`;
+  const r = await fetchWithTimeout(
+    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}?ref=${GITHUB_BRANCH}`,
+    { headers: GH_HEADERS() }
+  );
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`GitHub manifest fetch ${r.status}`);
+  const data = await r.json();
+  return JSON.parse(Buffer.from(data.content, "base64").toString("utf-8"));
+}
 
 const CORS = {
   "Access-Control-Allow-Origin":  "*",
@@ -161,18 +184,35 @@ export const handler = async (event) => {
       });
     }
 
-    const urlCheck = validateUrl(node.url);
-    if (!urlCheck.ok) {
-      return reply(400, { status: "ERROR", reason: "INVALID_NODE_URL" });
+    // Detect proxy-hosted nodes — their URL is on aetherbeacon.io itself.
+    // Netlify functions cannot reliably fetch from their own domain (self-referential HTTP).
+    // For proxy nodes, read the manifest from GitHub directly instead.
+    let manifest;
+    const isProxyNode = (() => {
+      try { return new URL(node.url).hostname === "aetherbeacon.io"; } catch { return false; }
+    })();
+
+    if (isProxyNode) {
+      manifest = await fetchProxyManifest(beaconId);
+      if (!manifest) {
+        return reply(404, {
+          status:    "NOT_FOUND",
+          beacon_id: beaconId,
+          message:   "Proxy manifest not found in repository. Re-register via POST /proxy-register.",
+        });
+      }
+    } else {
+      const urlCheck = validateUrl(node.url);
+      if (!urlCheck.ok) {
+        return reply(400, { status: "ERROR", reason: "INVALID_NODE_URL" });
+      }
+      const manifestUrl = node.url.endsWith("/")
+        ? `${node.url}aether.json`
+        : `${node.url}/aether.json`;
+      const manifestR = await fetchWithTimeout(manifestUrl);
+      if (!manifestR.ok) throw new Error(`manifest fetch HTTP ${manifestR.status}`);
+      manifest = await manifestR.json();
     }
-
-    const manifestUrl = node.url.endsWith("/")
-      ? `${node.url}aether.json`
-      : `${node.url}/aether.json`;
-
-    const manifestR = await fetchWithTimeout(manifestUrl);
-    if (!manifestR.ok) throw new Error(`manifest fetch HTTP ${manifestR.status}`);
-    const manifest = await manifestR.json();
 
     if (!manifest.encryption?.public_key) {
       return reply(422, {
