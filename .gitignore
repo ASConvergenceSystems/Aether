@@ -5,6 +5,9 @@ standard.pdf
 encryption_sk.json
 shares/
 
+# Operator tools — private, not part of the public spec
+read_inbox.mjs
+
 # Node
 node_modules/
 
