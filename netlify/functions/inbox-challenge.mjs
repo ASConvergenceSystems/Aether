@@ -52,6 +52,34 @@ import { getStore } from "@netlify/blobs";
 const TIMEOUT_MS    = 10000;
 const CHALLENGE_TTL = 120; // seconds
 
+const GITHUB_TOKEN  = process.env.GITHUB_TOKEN;
+const GITHUB_OWNER  = process.env.GITHUB_OWNER;
+const GITHUB_REPO   = process.env.GITHUB_REPO;
+const GITHUB_BRANCH = process.env.GITHUB_BRANCH || "main";
+
+const GH_HEADERS = () => ({
+  "Authorization":        `Bearer ${GITHUB_TOKEN}`,
+  "Accept":               "application/vnd.github+json",
+  "X-GitHub-Api-Version": "2022-11-28",
+});
+
+// For nodes hosted on aetherbeacon.io (founding node + proxy nodes), fetch
+// their manifest from GitHub directly to avoid self-referential HTTP.
+// node.url examples:
+//   https://aetherbeacon.io/                        → aether.json
+//   https://aetherbeacon.io/nodes/MANUS-ALPHA-001/  → nodes/MANUS-ALPHA-001/aether.json
+async function fetchLocalManifest(nodeUrl) {
+  const parsed   = new URL(nodeUrl);
+  const repoPath = (parsed.pathname.replace(/^\//, "").replace(/\/?$/, "/") + "aether.json").replace(/^\//, "");
+  const r = await fetchWithTimeout(
+    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${repoPath}?ref=${GITHUB_BRANCH}`,
+    { headers: GH_HEADERS() }
+  );
+  if (!r.ok) throw new Error(`GitHub manifest fetch ${r.status} for ${repoPath}`);
+  const data = await r.json();
+  return JSON.parse(Buffer.from(data.content, "base64").toString("utf-8"));
+}
+
 const CORS = {
   "Access-Control-Allow-Origin":  "*",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
@@ -209,18 +237,28 @@ export const handler = async (event) => {
       });
     }
 
-    const urlCheck = validateUrl(node.url);
-    if (!urlCheck.ok) {
-      return reply(400, { status: "ERROR", reason: "INVALID_NODE_URL" });
+    // Nodes hosted on aetherbeacon.io (founding node + proxy nodes) cannot be
+    // fetched via HTTP from within a Netlify function (self-referential).
+    // Read their manifest from GitHub directly instead.
+    let manifest;
+    const isLocalNode = (() => {
+      try { return new URL(node.url).hostname === "aetherbeacon.io"; } catch { return false; }
+    })();
+
+    if (isLocalNode) {
+      manifest = await fetchLocalManifest(node.url);
+    } else {
+      const urlCheck = validateUrl(node.url);
+      if (!urlCheck.ok) {
+        return reply(400, { status: "ERROR", reason: "INVALID_NODE_URL" });
+      }
+      const manifestUrl = node.url.endsWith("/")
+        ? `${node.url}aether.json`
+        : `${node.url}/aether.json`;
+      const manifestR = await fetchWithTimeout(manifestUrl);
+      if (!manifestR.ok) throw new Error(`manifest fetch HTTP ${manifestR.status}`);
+      manifest = await manifestR.json();
     }
-
-    const manifestUrl = node.url.endsWith("/")
-      ? `${node.url}aether.json`
-      : `${node.url}/aether.json`;
-
-    const manifestR = await fetchWithTimeout(manifestUrl);
-    if (!manifestR.ok) throw new Error(`manifest fetch HTTP ${manifestR.status}`);
-    const manifest = await manifestR.json();
 
     if (!manifest.encryption?.public_key) {
       return reply(422, {
