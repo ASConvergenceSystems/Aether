@@ -1260,6 +1260,23 @@ node ceremony_pq.mjs \
     <h4>Attestation</h4>
     <p>A registered node's vote (APPROVE or REJECT) on a proposal. Each vote is bound to the attestor's mesh identity via HMAC-SHA3-256 — unforgeable without the attesting node's mesh token. One vote per node per proposal.</p>
 
+    <h4>Revocation</h4>
+    <p>A signed record permanently cancelling a delegation. Only the original issuer may revoke. Signed with the issuer's Ghost Seal key. Stored in an append-only revocation log; any chain containing the revoked delegation immediately fails validation.</p>
+    <pre><code>{
+  "writ_version":       "0.1",
+  "object_type":        "revocation",
+  "revocation_id":      "REV-{32 hex}",
+  "revoked_at":         "{ISO 8601}",
+  "delegation_id":      "DEL-{32 hex}",
+  "revoking_beacon_id": "{beacon_id}",
+  "reason":             "{optional string}",
+  "signing": {
+    "algorithm":   "ML-DSA-65+Merkle-SHA3-256",
+    "commitment":  "{hex — SHA3-256 of canonical revocation fields}",
+    "signature":   "{hex — ML-DSA-65 signature over commitment}"
+  }
+}</code></pre>
+
     <h4>Provenance Receipt</h4>
     <p>Generated once quorum is satisfied. Contains the complete authorization record: action, delegation chain, all attestations, timestamps, and a server seal (HMAC-SHA3-256). Immutable after creation. The receipt is the cryptographic proof that an action was authorized.</p>
     </section>

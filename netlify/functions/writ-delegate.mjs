@@ -160,7 +160,7 @@ export const handler = async (event) => {
   const issuedAt     = new Date().toISOString();
 
   const delegation = {
-    epg_version:           "0.1",
+    writ_version:          "0.1",
     object_type:           "delegation",
     delegation_id:         delegationId,
     issued_at:             issuedAt,
