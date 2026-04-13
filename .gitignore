@@ -7,6 +7,8 @@ shares/
 
 # Operator tools — private, not part of the public spec
 read_inbox.mjs
+send_message.mjs
+outbox.txt
 
 # Node
 node_modules/
