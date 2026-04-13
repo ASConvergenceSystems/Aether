@@ -47,6 +47,47 @@
   to     = "/.netlify/functions/inbox"
   status = 200
 
+# WRIT endpoints — order matters: specific paths before wildcard reads
+[[redirects]]
+  from   = "/writ/delegate"
+  to     = "/.netlify/functions/writ-delegate"
+  status = 200
+
+[[redirects]]
+  from   = "/writ/propose"
+  to     = "/.netlify/functions/writ-propose"
+  status = 200
+
+[[redirects]]
+  from   = "/writ/attest"
+  to     = "/.netlify/functions/writ-attest"
+  status = 200
+
+[[redirects]]
+  from   = "/writ/revoke"
+  to     = "/.netlify/functions/writ-revoke"
+  status = 200
+
+[[redirects]]
+  from   = "/writ/receipt/*"
+  to     = "/.netlify/functions/writ-receipt"
+  status = 200
+
+[[redirects]]
+  from   = "/writ/proposal/*"
+  to     = "/.netlify/functions/writ-read"
+  status = 200
+
+[[redirects]]
+  from   = "/writ/delegation/*"
+  to     = "/.netlify/functions/writ-read"
+  status = 200
+
+[[redirects]]
+  from   = "/writ/index"
+  to     = "/.netlify/functions/writ-read"
+  status = 200
+
 [functions]
   node_bundler = "esbuild"
 
