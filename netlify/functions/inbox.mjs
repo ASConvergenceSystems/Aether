@@ -32,9 +32,10 @@
  *   7. POST { sender_beacon_id, encrypted: true, e_pk, nonce, ct, hint }
  */
 
-import { createHash } from "node:crypto";
-import { getStore } from "@netlify/blobs";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { verifyMeshToken, extractBeaconId } from "./lib/mesh-auth.mjs";
+
+const MESH_TOKEN_SECRET = process.env.MESH_TOKEN_SECRET;
 
 // Legacy shared token — kept only for GET inbox fallback (operator access)
 const RESPONSE_TOKEN = "AETHER-11BD325A5DB36789C826CEF5983C7D1B8919EB69063EA04DF0F1C966215E4CE2";
@@ -155,60 +156,60 @@ export const handler = async (event) => {
     const challengeId = event.headers["x-challenge-id"] || event.headers["X-Challenge-ID"] || "";
 
     if (challengeId) {
-      // ── Challenge-response auth (proof of X25519 key possession) ───────
+      // ── Stateless HMAC challenge-response auth ──────────────────────────
+      // No Blobs — verify by recomputing HMAC from presented headers
       if (!token) {
         return reply(401, {
           status:  "UNAUTHORIZED",
           reason:  "MISSING_SESSION_TOKEN",
           message: "Include decrypted session token as: Authorization: Bearer {session_token_hex}",
-          hint:    "Decrypt the challenge from /inbox-challenge/{beacon_id} with your X25519 private key",
+          hint:    "Decrypt the challenge from /inbox-challenge/{beacon_id} with your private key",
         });
       }
 
-      let challenge;
-      try {
-        const store = getStore("inbox-challenges");
-        challenge   = await store.get(challengeId, { type: "json" });
-      } catch (e) {
-        console.error("[AETHER] challenge lookup failed:", e.message);
-        return reply(500, { status: "ERROR", reason: "CHALLENGE_LOOKUP_FAILED" });
-      }
+      const expiresAt    = event.headers["x-challenge-expires"] || event.headers["X-Challenge-Expires"] || "";
+      const challengeMac = event.headers["x-challenge-mac"]     || event.headers["X-Challenge-MAC"]     || "";
 
-      if (!challenge) {
+      if (!expiresAt || !challengeMac) {
         return reply(401, {
           status:  "UNAUTHORIZED",
-          reason:  "CHALLENGE_NOT_FOUND",
-          message: "Challenge expired or not found. Request a new one from /inbox-challenge/{beacon_id}.",
+          reason:  "MISSING_CHALLENGE_HEADERS",
+          message: "Include X-Challenge-Expires and X-Challenge-MAC headers from the challenge response.",
         });
       }
 
-      if (challenge.beacon_id !== beaconId) {
+      // Check expiry
+      if (new Date() > new Date(expiresAt)) {
         return reply(401, {
           status:  "UNAUTHORIZED",
-          reason:  "BEACON_ID_MISMATCH",
-          message: "This challenge was issued for a different beacon_id.",
+          reason:  "CHALLENGE_EXPIRED",
+          message: "Challenge has expired. Request a new one from /inbox-challenge/{beacon_id}.",
         });
       }
 
-      // Verify: sha256(presented token) must match stored hash
+      // Recompute HMAC: sha256(presented token) → must reproduce the MAC
       const presentedHash = createHash("sha256")
         .update(Buffer.from(token, "hex"))
         .digest("hex");
 
-      if (presentedHash !== challenge.token_hash) {
+      const expectedMac = createHmac("sha256", MESH_TOKEN_SECRET || "")
+        .update(`${challengeId}:${beaconId}:${expiresAt}:${presentedHash}`)
+        .digest("hex");
+
+      let macValid = false;
+      try {
+        macValid = timingSafeEqual(
+          Buffer.from(expectedMac,  "hex"),
+          Buffer.from(challengeMac, "hex")
+        );
+      } catch { macValid = false; }
+
+      if (!macValid) {
         return reply(401, {
           status:  "UNAUTHORIZED",
           reason:  "INVALID_SESSION_TOKEN",
           message: "Session token does not match challenge. Ensure you decrypted correctly.",
         });
-      }
-
-      // Single-use: delete immediately (TTL is a safety net only)
-      try {
-        const store = getStore("inbox-challenges");
-        await store.delete(challengeId);
-      } catch (e) {
-        console.warn("[AETHER] challenge delete failed (non-fatal, TTL will expire it):", e.message);
       }
 
     } else {

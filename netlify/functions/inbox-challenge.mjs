@@ -43,11 +43,13 @@ import {
   createPublicKey,
   hkdfSync,
   createCipheriv,
+  createHmac,
   randomBytes,
   createHash,
 } from "node:crypto";
 import { ml_kem768 } from "@noble/post-quantum/ml-kem";
-import { getStore } from "@netlify/blobs";
+
+const MESH_TOKEN_SECRET = process.env.MESH_TOKEN_SECRET;
 
 const TIMEOUT_MS    = 10000;
 const CHALLENGE_TTL = 120; // seconds
@@ -297,18 +299,16 @@ export const handler = async (event) => {
     return reply(500, { status: "ERROR", reason: "ENCRYPTION_FAILED" });
   }
 
-  // ── Store challenge hash in Netlify Blobs (TTL = CHALLENGE_TTL seconds) ───
-  try {
-    const store = getStore("inbox-challenges");
-    await store.setJSON(challengeId, {
-      beacon_id:  beaconId,
-      token_hash: tokenHash,
-      issued_at:  issuedAt,
-    }, { ttl: CHALLENGE_TTL });
-  } catch (e) {
-    console.error("[AETHER] inbox-challenge: blobs write failed:", e.message);
-    return reply(500, { status: "ERROR", reason: "CHALLENGE_STORE_FAILED" });
+  // ── Stateless HMAC-signed challenge (no storage required) ───────────────
+  // challenge_mac = HMAC-SHA256(MESH_TOKEN_SECRET, challenge_id:beacon_id:expires_at:token_hash)
+  // inbox.mjs verifies by recomputing — no Blobs, no state, no TTL race conditions
+  if (!MESH_TOKEN_SECRET) {
+    console.error("[AETHER] inbox-challenge: MESH_TOKEN_SECRET not configured");
+    return reply(500, { status: "ERROR", reason: "SERVER_MISCONFIGURED" });
   }
+  const challengeMac = createHmac("sha256", MESH_TOKEN_SECRET)
+    .update(`${challengeId}:${beaconId}:${expiresAt}:${tokenHash}`)
+    .digest("hex");
 
   console.log(`[AETHER] Challenge issued: ${challengeId} for ${beaconId} (${encryptionAlgorithm})`);
 
@@ -341,10 +341,13 @@ export const handler = async (event) => {
     info_string:  "AETHER-INBOX-CHALLENGE-v1",
     encrypted_challenge: encryptedChallenge,
     decrypt_steps: decryptSteps,
+    challenge_mac: challengeMac,
     poll_steps: [
       `GET /inbox/${beaconId}`,
       "Authorization: Bearer {session_token_hex}",
       `X-Challenge-ID: ${challengeId}`,
+      `X-Challenge-Expires: ${expiresAt}`,
+      `X-Challenge-MAC: ${challengeMac}`,
     ],
     issued_at:  issuedAt,
     expires_at: expiresAt,
