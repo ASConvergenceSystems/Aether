@@ -55,15 +55,18 @@ const GH_HEADERS = () => ({
   "X-GitHub-Api-Version": "2022-11-28",
 });
 
-// Fetch a proxy-hosted manifest from GitHub directly (avoids self-referential HTTP)
-async function fetchProxyManifest(beaconId) {
-  const path = `nodes/${beaconId}/aether.json`;
+// Fetch a local-hosted manifest from GitHub directly (avoids self-referential HTTP).
+// Derives the repo path from the node's URL, so works for both the founding node (/)
+// and proxy nodes (/nodes/{beaconId}/).
+async function fetchLocalManifest(nodeUrl) {
+  const parsed   = new URL(nodeUrl);
+  const repoPath = (parsed.pathname.replace(/^\//, "").replace(/\/?$/, "/") + "aether.json").replace(/^\//, "");
   const r = await fetchWithTimeout(
-    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}?ref=${GITHUB_BRANCH}`,
+    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${repoPath}?ref=${GITHUB_BRANCH}`,
     { headers: GH_HEADERS() }
   );
   if (r.status === 404) return null;
-  if (!r.ok) throw new Error(`GitHub manifest fetch ${r.status}`);
+  if (!r.ok) throw new Error(`GitHub manifest fetch ${r.status} for ${repoPath}`);
   const data = await r.json();
   return JSON.parse(Buffer.from(data.content, "base64").toString("utf-8"));
 }
@@ -193,12 +196,12 @@ export const handler = async (event) => {
     })();
 
     if (isProxyNode) {
-      manifest = await fetchProxyManifest(beaconId);
+      manifest = await fetchLocalManifest(node.url);
       if (!manifest) {
         return reply(404, {
           status:    "NOT_FOUND",
           beacon_id: beaconId,
-          message:   "Proxy manifest not found in repository. Re-register via POST /proxy-register.",
+          message:   "Manifest not found in repository. Re-register via POST /proxy-register.",
         });
       }
     } else {
