@@ -173,9 +173,22 @@
       "beacon_id": "MANUS-ALPHA-001",
       "registry_status": "REGISTERED",
       "algorithm": "ML-DSA-65+Merkle-SHA3-256"
+    },
+    {
+      "entry_id": "LOG-FF7A510CB39B",
+      "chain_hash": "34471b35efbb16feb5a520d58db3be47de6f4db34773e03fdd928216574a6fdd",
+      "prev_hash": "41cd2f81be20c1c41ab16afcd0cfb618b2621c13bd8dad160063a55adcd23d02",
+      "timestamp": "2026-04-13T23:05:13.574Z",
+      "endpoint": "/verify",
+      "user_agent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Claude-User/1.0; +claude-user@anthropic.com)",
+      "ip_prefix": "34.162.230.x",
+      "result": "VERIFIED",
+      "beacon_id": "AEGIS-ALPHA-001",
+      "registry_status": "REGISTERED",
+      "algorithm": "ML-DSA-65+Merkle-SHA3-256"
     }
   ],
-  "entry_count": 13,
+  "entry_count": 14,
   "created": "2026-04-12T15:17:28.389Z",
-  "last_updated": "2026-04-13T03:32:50.253Z"
+  "last_updated": "2026-04-13T23:05:13.574Z"
 }
