@@ -10,7 +10,9 @@
  *   GITHUB_BRANCH     — Branch to commit to (default: main)
  */
 
-import { logAccess } from "./lib/access-log.mjs";
+import { createHash }  from "node:crypto";
+import { verifyGhostSeal } from "./lib/writ-crypto.mjs";
+import { logAccess }   from "./lib/access-log.mjs";
 
 const GITHUB_TOKEN  = process.env.GITHUB_TOKEN;
 const GITHUB_OWNER  = process.env.GITHUB_OWNER;
@@ -70,6 +72,19 @@ function validateUrl(urlStr) {
   return { ok: true };
 }
 
+// ── Manifest commitment — must match ceremony_join.mjs ────────────────────────
+function manifestCommitment(manifest) {
+  const str = [
+    manifest.beacon_id,
+    manifest.aether_version,
+    manifest.encryption?.public_key        ?? "",
+    manifest.ghost_seal?.algorithm         ?? "",
+    manifest.ghost_seal?.verification_key  ?? "",
+    manifest.ghost_seal?.signed_at         ?? "",
+  ].join("|");
+  return createHash("sha3-256").update(str, "utf-8").digest("hex");
+}
+
 // ── Beacon conformance validation ─────────────────────────────
 async function validateBeacon(nodeUrl) {
   const url = nodeUrl.endsWith("/") ? nodeUrl : nodeUrl + "/";
@@ -96,7 +111,27 @@ async function validateBeacon(nodeUrl) {
     return { valid: false, reason: "NODE_NOT_ACTIVE", detail: `status is '${manifest.status}'` };
   }
 
-  // 3. Fetch beacon root — check AETHER_BEACON_BEGIN only if response is HTML
+  // 3. Ghost Seal — required per §6.2
+  const gs = manifest.ghost_seal;
+  if (!gs?.verification_key || !gs?.signature || !gs?.algorithm) {
+    return { valid: false, reason: "GHOST_SEAL_MISSING",
+      detail: "ghost_seal with algorithm, verification_key, and signature is required per AETHER-SPEC-001 §6.2" };
+  }
+  const commitment = manifestCommitment(manifest);
+  const sigValid   = verifyGhostSeal(gs.algorithm, gs.verification_key, gs.signature, commitment);
+  if (!sigValid) {
+    return { valid: false, reason: "GHOST_SEAL_INVALID",
+      detail: "Ghost Seal signature verification failed. Re-run the ceremony and ensure the manifest has not been modified after signing.",
+      commitment };
+  }
+
+  // 4. Covenant acknowledgment — required per §6.2
+  if (!manifest.covenant_accepted) {
+    return { valid: false, reason: "COVENANT_NOT_ACCEPTED",
+      detail: "manifest must include covenant_accepted: true" };
+  }
+
+  // 5. Fetch beacon root — check AETHER_BEACON_BEGIN only if response is HTML
   // Non-web beacons (pure API agents, CLI services) may serve JSON or nothing at root.
   // aether.json alone is sufficient conformance for non-web nodes.
   try {
@@ -213,26 +248,30 @@ export const handler = async (event) => {
   const today = new Date().toISOString().split("T")[0];
   const gs = manifest.ghost_seal;
   const newNode = {
-    beacon_id:       manifest.beacon_id,
-    url:             normalizedUrl,
-    operator:        manifest.operator?.organization
-                     || manifest.operator?.agent
-                     || manifest.operator
-                     || "unknown",
-    registered:      today,
-    status:          "ACTIVE",
-    node_class:      "PARTICIPANT",
-    aether_version:  manifest.aether_version,
-    topics:          manifest.topics || [],
-    capabilities:    manifest.capabilities || [],
-    ghost_seal_status:    gs?.signature ? "SIGNED" : "UNSIGNED",
-    ghost_seal_algorithm: gs?.algorithm || null,
-    verification_key:     gs?.verification_key || null,
-    ceremony_epoch:       gs?.ceremony_epoch || null,
-    note:            "Auto-registered via AETHER mesh propagation protocol.",
+    beacon_id:            manifest.beacon_id,
+    url:                  normalizedUrl,
+    operator:             manifest.operator?.organization
+                          || manifest.operator?.agent
+                          || manifest.operator
+                          || "unknown",
+    registered:           today,
+    status:               "ACTIVE",
+    node_class:           "PARTICIPANT",
+    aether_version:       manifest.aether_version,
+    topics:               manifest.topics || [],
+    capabilities:         manifest.capabilities || [],
+    ghost_seal_status:    "VERIFIED",
+    ghost_seal_algorithm: gs.algorithm,
+    verification_key:     gs.verification_key,
+    ceremony_epoch:       gs.ceremony_epoch || null,
+    encryption_public_key: manifest.encryption?.public_key || null,
+    writ_participant:     manifest.writ?.participant === true,
+    writ_roles:           manifest.writ?.roles || [],
+    note:                 "Self-registered via AETHER ceremony_join.",
   };
 
   let registry;
+  let wasUpdate = false;
   for (let attempt = 0; attempt < 3; attempt++) {
     let sha;
     try {
@@ -242,18 +281,17 @@ export const handler = async (event) => {
       return reply(500, { status: "ERROR", reason: "REGISTRY_READ_FAILED" });
     }
 
-    // Duplicate check (re-checked each attempt in case another request registered first)
-    const existing = registry.nodes.find(n => n.beacon_id === manifest.beacon_id);
-    if (existing) {
-      return reply(409, {
-        status: "ALREADY_REGISTERED",
-        beacon_id: manifest.beacon_id,
-        message: "This beacon_id is already in the registry.",
-      });
-    }
+    // Re-registration: update existing entry if Ghost Seal is valid (already verified above)
+    const existingIdx = registry.nodes.findIndex(n => n.beacon_id === manifest.beacon_id);
+    const isUpdate    = existingIdx !== -1;
+    wasUpdate         = isUpdate;
 
     const updated = JSON.parse(JSON.stringify(registry));
-    updated.nodes.push(newNode);
+    if (isUpdate) {
+      updated.nodes[existingIdx] = { ...updated.nodes[existingIdx], ...newNode };
+    } else {
+      updated.nodes.push(newNode);
+    }
     updated.last_updated = today;
     updated.mesh_status  = `ACTIVE — ${updated.nodes.length} node${updated.nodes.length !== 1 ? "s" : ""}.`;
 
@@ -261,7 +299,9 @@ export const handler = async (event) => {
       await writeRegistry(
         updated,
         sha,
-        `AETHER: auto-register node ${manifest.beacon_id} [${today}]`
+        isUpdate
+          ? `AETHER: re-register ${manifest.beacon_id} [${today}]`
+          : `AETHER: register ${manifest.beacon_id} [${today}]`
       );
       registry = updated;
       break;
@@ -275,16 +315,17 @@ export const handler = async (event) => {
     }
   }
 
-  console.log(`[AETHER] Registered: ${manifest.beacon_id} at ${normalizedUrl}`);
+  const action = wasUpdate ? "UPDATED" : "REGISTERED";
+  console.log(`[AETHER] ${action}: ${manifest.beacon_id} at ${normalizedUrl}`);
   await logAccess({
     endpoint: "/register",
     event,
-    result:   "REGISTERED",
+    result:   action,
     extra: {
       beacon_id:      manifest.beacon_id,
       node_url:       normalizedUrl,
       aether_version: manifest.aether_version,
-      ghost_seal:     manifest.ghost_seal?.signature ? "SIGNED" : "UNSIGNED",
+      ghost_seal:     "VERIFIED",
     },
   });
 
@@ -349,11 +390,13 @@ export const handler = async (event) => {
   };
 
   return reply(200, {
-    status:            "REGISTERED",
+    status:            action,
     beacon_id:         manifest.beacon_id,
     node_url:          normalizedUrl,
-    registry_position: registry.nodes.length,
-    message:           `Node ${manifest.beacon_id} has been added to the AETHER mesh. Welcome.`,
+    registry_position: registry.nodes.findIndex(n => n.beacon_id === manifest.beacon_id) + 1,
+    message:           action === "REGISTERED"
+      ? `Node ${manifest.beacon_id} has been added to the AETHER mesh. Welcome.`
+      : `Node ${manifest.beacon_id} registry entry updated.`,
     next_steps: [
       "Deploy the starter_registry as aether-registry.json at your beacon domain root.",
       "Add peer_registries links to any other registries you discover.",

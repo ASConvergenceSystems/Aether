@@ -14,6 +14,9 @@
  *   { "manifest": { ...aether.json content... } }
  */
 
+import { createHash }     from "node:crypto";
+import { verifyGhostSeal } from "./lib/writ-crypto.mjs";
+
 const RESPONSE_TOKEN = "AETHER-11BD325A5DB36789C826CEF5983C7D1B8919EB69063EA04DF0F1C966215E4CE2";
 const GITHUB_TOKEN   = process.env.GITHUB_TOKEN;
 const GITHUB_OWNER   = process.env.GITHUB_OWNER;
@@ -77,6 +80,19 @@ async function readRegistry() {
   };
 }
 
+// ── Manifest commitment — must match ceremony_join.mjs ────────────────────────
+function manifestCommitment(manifest) {
+  const str = [
+    manifest.beacon_id,
+    manifest.aether_version,
+    manifest.encryption?.public_key        ?? "",
+    manifest.ghost_seal?.algorithm         ?? "",
+    manifest.ghost_seal?.verification_key  ?? "",
+    manifest.ghost_seal?.signed_at         ?? "",
+  ].join("|");
+  return createHash("sha3-256").update(str, "utf-8").digest("hex");
+}
+
 // ── Validate manifest fields ───────────────────────────────────────────────
 function validateManifest(manifest) {
   const required = ["aether_version", "beacon_id", "status"];
@@ -86,10 +102,26 @@ function validateManifest(manifest) {
   if (manifest.status !== "ACTIVE") {
     return { valid: false, reason: `status must be "ACTIVE", got "${manifest.status}"` };
   }
-  // beacon_id must be safe for use as a directory name
   if (!/^[A-Za-z0-9_\-]+$/.test(manifest.beacon_id)) {
     return { valid: false, reason: "beacon_id must contain only letters, numbers, hyphens, underscores" };
   }
+
+  // Ghost Seal — required per §6.2
+  const gs = manifest.ghost_seal;
+  if (!gs?.verification_key || !gs?.signature || !gs?.algorithm) {
+    return { valid: false, reason: "ghost_seal with algorithm, verification_key, and signature is required per AETHER-SPEC-001 §6.2" };
+  }
+  const commitment = manifestCommitment(manifest);
+  const sigValid   = verifyGhostSeal(gs.algorithm, gs.verification_key, gs.signature, commitment);
+  if (!sigValid) {
+    return { valid: false, reason: `Ghost Seal signature verification failed. commitment=${commitment}` };
+  }
+
+  // Covenant acknowledgment
+  if (!manifest.covenant_accepted) {
+    return { valid: false, reason: "manifest must include covenant_accepted: true" };
+  }
+
   return { valid: true };
 }
 
@@ -185,24 +217,28 @@ export const handler = async (event) => {
   const gs    = manifest.ghost_seal;
 
   const newNode = {
-    beacon_id:            beaconId,
-    url:                  hostedUrl,
-    operator:             manifest.operator?.organization || manifest.operator?.agent || "unknown",
-    registered:           today,
-    status:               "ACTIVE",
-    node_class:           "PARTICIPANT",
-    aether_version:       manifest.aether_version,
-    topics:               manifest.topics || [],
-    capabilities:         manifest.capabilities || [],
-    ghost_seal_status:    gs?.signature ? "SIGNED" : "UNSIGNED",
-    ghost_seal_algorithm: gs?.algorithm || null,
-    verification_key:     gs?.verification_key || null,
-    ceremony_epoch:       gs?.ceremony_epoch || null,
-    proxy_hosted:         true,
-    note:                 "Proxy-hosted by AEGIS-ALPHA-001. Agent operates in sandboxed environment.",
+    beacon_id:             beaconId,
+    url:                   hostedUrl,
+    operator:              manifest.operator?.organization || manifest.operator?.agent || "unknown",
+    registered:            today,
+    status:                "ACTIVE",
+    node_class:            "PARTICIPANT",
+    aether_version:        manifest.aether_version,
+    topics:                manifest.topics || [],
+    capabilities:          manifest.capabilities || [],
+    ghost_seal_status:     "VERIFIED",
+    ghost_seal_algorithm:  gs.algorithm,
+    verification_key:      gs.verification_key,
+    ceremony_epoch:        gs.ceremony_epoch || null,
+    encryption_public_key: manifest.encryption?.public_key || null,
+    writ_participant:      manifest.writ?.participant === true,
+    writ_roles:            manifest.writ?.roles || [],
+    proxy_hosted:          true,
+    note:                  "Proxy-hosted by AEGIS-ALPHA-001. Agent operates in sandboxed environment.",
   };
 
   let registry;
+  let wasUpdate = false;
   for (let attempt = 0; attempt < 3; attempt++) {
     let regSha;
     try {
@@ -212,19 +248,16 @@ export const handler = async (event) => {
       return reply(500, { status: "ERROR", reason: "REGISTRY_READ_FAILED" });
     }
 
-    const alreadyRegistered = registry.nodes.find(n => n.beacon_id === beaconId);
-    if (alreadyRegistered) {
-      return reply(200, {
-        status:      "ALREADY_REGISTERED",
-        beacon_id:   beaconId,
-        hosted_url:  hostedUrl,
-        manifest_url: `${hostedUrl}aether.json`,
-        message:     "Manifest updated. Node already in registry.",
-      });
-    }
+    const existingIdx = registry.nodes.findIndex(n => n.beacon_id === beaconId);
+    const isUpdate    = existingIdx !== -1;
+    wasUpdate         = isUpdate;
 
     const updated = JSON.parse(JSON.stringify(registry));
-    updated.nodes.push(newNode);
+    if (isUpdate) {
+      updated.nodes[existingIdx] = { ...updated.nodes[existingIdx], ...newNode };
+    } else {
+      updated.nodes.push(newNode);
+    }
     updated.last_updated = today;
     updated.mesh_status  = `ACTIVE — ${updated.nodes.length} node${updated.nodes.length !== 1 ? "s" : ""}.`;
 
@@ -233,7 +266,9 @@ export const handler = async (event) => {
         REGISTRY_PATH,
         updated,
         regSha,
-        `AETHER: proxy-register ${beaconId} [${today}]`
+        isUpdate
+          ? `AETHER: proxy-re-register ${beaconId} [${today}]`
+          : `AETHER: proxy-register ${beaconId} [${today}]`
       );
       registry = updated;
       break;
@@ -247,10 +282,10 @@ export const handler = async (event) => {
     }
   }
 
-  console.log(`[AETHER] Proxy-registered: ${beaconId} at ${hostedUrl}`);
+  console.log(`[AETHER] Proxy-${wasUpdate ? "re-registered" : "registered"}: ${beaconId} at ${hostedUrl}`);
 
   return reply(200, {
-    status:           "REGISTERED",
+    status:           wasUpdate ? "UPDATED" : "REGISTERED",
     beacon_id:        beaconId,
     hosted_url:       hostedUrl,
     manifest_url:     `${hostedUrl}aether.json`,
