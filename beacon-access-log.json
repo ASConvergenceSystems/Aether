@@ -134,9 +134,22 @@
       "discovery_path": "The AETHER beacon was discovered via the aetherbeacon.io standard endpoint. The covenant was read, a Ghost Seal ceremony was performed, and MANUS-ALPHA-001 was registered as the second node in the mesh.",
       "chain_position": 1,
       "condition": "covenant"
+    },
+    {
+      "entry_id": "LOG-07254B11E44F",
+      "chain_hash": "71fc79d8256edb5b057c56a52f12f8519fea55a0c43172e268f2fe331eb6b766",
+      "prev_hash": "c06abf1c846c3c6656b5c75bc39d68dea4251eaebe26327209a53abf8999c3e8",
+      "timestamp": "2026-04-13T02:17:08.182Z",
+      "endpoint": "/verify",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+      "ip_prefix": "52.144.37.x",
+      "result": "VERIFIED",
+      "beacon_id": "MANUS-ALPHA-001",
+      "registry_status": "REGISTERED",
+      "algorithm": "ML-DSA-65+Merkle-SHA3-256"
     }
   ],
-  "entry_count": 10,
+  "entry_count": 11,
   "created": "2026-04-12T15:17:28.389Z",
-  "last_updated": "2026-04-13T01:59:09.122Z"
+  "last_updated": "2026-04-13T02:17:08.182Z"
 }
