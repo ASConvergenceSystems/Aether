@@ -95,10 +95,13 @@ const CAPABILITIES_ALLOWLIST = new Set([
   "incin_relay",
 ]);
 
-const MAX_TOPICS       = 10;
-const MAX_TOPIC_LEN    = 100;
-const MAX_OPERATOR_LEN = 200;
+const MAX_TOPICS        = 10;
+const MAX_TOPIC_LEN     = 100;
+const MAX_OPERATOR_LEN  = 200;
 const MAX_BEACON_ID_LEN = 64;
+
+const TOPIC_SAFE_RE     = /^[\w\s\-.,'/&()]+$/;
+const HINT_INJECTION_RE = /\b(SYSTEM|USER|ASSISTANT|HUMAN|INSTRUCTION|IGNORE|OVERRIDE)\s*:/gi;
 
 function sanitize(str, maxLen) {
   return String(str).replace(/[\x00-\x1f\x7f]/g, "").slice(0, maxLen);
@@ -119,6 +122,9 @@ function validateManifestFields(manifest) {
       if (typeof t !== "string" || t.length > MAX_TOPIC_LEN) {
         return { valid: false, reason: `each topic must be a string under ${MAX_TOPIC_LEN} characters` };
       }
+      if (!TOPIC_SAFE_RE.test(t)) {
+        return { valid: false, reason: `topic contains disallowed characters: "${t}". Use letters, numbers, spaces, and basic punctuation only.` };
+      }
     }
   }
   if (manifest.capabilities !== undefined) {
@@ -130,6 +136,13 @@ function validateManifestFields(manifest) {
     }
   }
   return { valid: true };
+}
+
+function checkKeyUniqueness(registry, verificationKey, beaconId) {
+  const conflict = registry.nodes?.find(
+    n => n.verification_key === verificationKey && n.beacon_id !== beaconId
+  );
+  return conflict ? { ok: false, conflict: conflict.beacon_id } : { ok: true };
 }
 
 // ── Manifest commitment — must match ceremony_join.mjs ────────────────────────
@@ -307,6 +320,16 @@ export const handler = async (event) => {
     const existingIdx = registry.nodes.findIndex(n => n.beacon_id === beaconId);
     const isUpdate    = existingIdx !== -1;
     wasUpdate         = isUpdate;
+
+    // One keypair, one node
+    const keyCheck = checkKeyUniqueness(registry, manifest.ghost_seal.verification_key, beaconId);
+    if (!keyCheck.ok) {
+      return reply(409, {
+        status:  "ERROR",
+        reason:  "VERIFICATION_KEY_ALREADY_REGISTERED",
+        message: `This Ghost Seal verification key is already registered to node ${keyCheck.conflict}. Each node must use a unique keypair.`,
+      });
+    }
 
     const updated = JSON.parse(JSON.stringify(registry));
     if (isUpdate) {

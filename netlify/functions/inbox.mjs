@@ -47,6 +47,15 @@ function sanitize(str, maxLen) {
   return String(str).replace(/[\x00-\x1f\x7f]/g, "").slice(0, maxLen);
 }
 
+// Hint is plaintext visible to inbox readers — strip injection patterns
+const HINT_INJECTION_RE = /\b(SYSTEM|USER|ASSISTANT|HUMAN|INSTRUCTION|IGNORE|OVERRIDE)\s*:/gi;
+function sanitizeHint(str) {
+  return String(str)
+    .replace(/[\x00-\x1f\x7f<>`#\\]/g, "")
+    .replace(HINT_INJECTION_RE, "")
+    .slice(0, MAX_HINT_LENGTH);
+}
+
 const MESH_TOKEN_SECRET = process.env.MESH_TOKEN_SECRET;
 
 // Legacy shared token — kept only for GET inbox fallback (operator access)
@@ -390,7 +399,7 @@ export const handler = async (event) => {
       prev_hash:         prevHash,
       received_at:       receivedAt,
       sender_beacon_id:  sanitize(sender_beacon_id, MAX_BEACON_ID_LENGTH),
-      hint:              hint ? sanitize(hint, MAX_HINT_LENGTH) : null,
+      hint:              hint ? sanitizeHint(hint) : null,
       encrypted:         true,
       nonce:             String(nonce).slice(0, 64),
       ct:                String(ct).slice(0, MAX_CT_HEX_LEN),

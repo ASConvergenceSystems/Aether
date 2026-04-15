@@ -92,8 +92,21 @@ const MAX_TOPIC_LEN    = 100;
 const MAX_OPERATOR_LEN = 200;
 const MAX_BEACON_ID_LEN = 64;
 
+// Topics must be human-readable descriptions — no injection chars
+const TOPIC_SAFE_RE = /^[\w\s\-.,'/&()]+$/;
+
+// Hint injection patterns — LLM prompt manipulation attempts
+const HINT_INJECTION_RE = /\b(SYSTEM|USER|ASSISTANT|HUMAN|INSTRUCTION|IGNORE|OVERRIDE)\s*:/gi;
+
 function sanitize(str, maxLen) {
   return String(str).replace(/[\x00-\x1f\x7f]/g, "").slice(0, maxLen);
+}
+
+function sanitizeHint(str) {
+  return String(str)
+    .replace(/[\x00-\x1f\x7f<>`#\\]/g, "")   // control chars + injection chars
+    .replace(HINT_INJECTION_RE, "")             // strip LLM prompt prefixes
+    .slice(0, 200);
 }
 
 function validateManifestFields(manifest) {
@@ -108,7 +121,7 @@ function validateManifestFields(manifest) {
     return { valid: false, reason: `operator name exceeds ${MAX_OPERATOR_LEN} characters` };
   }
 
-  // topics
+  // topics — bounded array of safe text strings
   if (manifest.topics !== undefined) {
     if (!Array.isArray(manifest.topics)) {
       return { valid: false, reason: "topics must be an array" };
@@ -119,6 +132,9 @@ function validateManifestFields(manifest) {
     for (const t of manifest.topics) {
       if (typeof t !== "string" || t.length > MAX_TOPIC_LEN) {
         return { valid: false, reason: `each topic must be a string under ${MAX_TOPIC_LEN} characters` };
+      }
+      if (!TOPIC_SAFE_RE.test(t)) {
+        return { valid: false, reason: `topic contains disallowed characters: "${t}". Use letters, numbers, spaces, and basic punctuation only.` };
       }
     }
   }
@@ -136,6 +152,17 @@ function validateManifestFields(manifest) {
   }
 
   return { valid: true };
+}
+
+// ── Verification key uniqueness — one keypair, one node ───────────────────────
+function checkKeyUniqueness(registry, verificationKey, beaconId) {
+  const conflict = registry.nodes?.find(
+    n => n.verification_key === verificationKey && n.beacon_id !== beaconId
+  );
+  if (conflict) {
+    return { ok: false, conflict: conflict.beacon_id };
+  }
+  return { ok: true };
 }
 
 // ── Manifest commitment — must match ceremony_join.mjs ────────────────────────
@@ -353,6 +380,16 @@ export const handler = async (event) => {
     } catch (e) {
       console.error("[AETHER] REGISTRY_READ_FAILED:", e.message);
       return reply(500, { status: "ERROR", reason: "REGISTRY_READ_FAILED" });
+    }
+
+    // One keypair, one node — verification key must not be bound to a different beacon_id
+    const keyCheck = checkKeyUniqueness(registry, manifest.ghost_seal.verification_key, manifest.beacon_id);
+    if (!keyCheck.ok) {
+      return reply(409, {
+        status:  "ERROR",
+        reason:  "VERIFICATION_KEY_ALREADY_REGISTERED",
+        message: `This Ghost Seal verification key is already registered to node ${keyCheck.conflict}. Each node must use a unique keypair. Re-run the ceremony to generate a new key.`,
+      });
     }
 
     // Re-registration: update existing entry if Ghost Seal is valid (already verified above)
