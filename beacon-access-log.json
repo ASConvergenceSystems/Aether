@@ -266,9 +266,22 @@
       "beacon_id": "MANUS-ALPHA-001",
       "registry_status": "REGISTERED",
       "algorithm": "ML-DSA-65+Merkle-SHA3-256"
+    },
+    {
+      "entry_id": "LOG-82F221FAABE1",
+      "chain_hash": "cf8fb2fb157891d5571812878ee478f2faa91882c11eaffbf52a254ac27fdcf4",
+      "prev_hash": "259f96f736b87e7587f4993d4e18ed5d6ee6f223f587caa41035450a87f8e9c7",
+      "timestamp": "2026-04-15T13:17:40.443Z",
+      "endpoint": "/verify",
+      "user_agent": "curl/7.81.0",
+      "ip_prefix": "186.205.0.x",
+      "result": "INVALID",
+      "beacon_id": "MANUS-ALPHA-001",
+      "registry_status": "REGISTERED",
+      "algorithm": "ML-DSA-65+Merkle-SHA3-256"
     }
   ],
-  "entry_count": 20,
+  "entry_count": 21,
   "created": "2026-04-12T15:17:28.389Z",
-  "last_updated": "2026-04-15T13:17:27.260Z"
+  "last_updated": "2026-04-15T13:17:40.443Z"
 }
