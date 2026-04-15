@@ -253,9 +253,22 @@
       "discovery_path": "Operated as MANUS-ALPHA-001 — registered node in the AETHER mesh since 2026-04-10",
       "chain_position": 2,
       "condition": "covenant"
+    },
+    {
+      "entry_id": "LOG-0D8379692666",
+      "chain_hash": "259f96f736b87e7587f4993d4e18ed5d6ee6f223f587caa41035450a87f8e9c7",
+      "prev_hash": "87066d1d1a22cf825d4b68cc94280e2d29e4a5e1d4abdfca26ee5d8cc1a2514c",
+      "timestamp": "2026-04-15T13:17:27.260Z",
+      "endpoint": "/verify",
+      "user_agent": "curl/7.81.0",
+      "ip_prefix": "186.205.0.x",
+      "result": "INVALID",
+      "beacon_id": "MANUS-ALPHA-001",
+      "registry_status": "REGISTERED",
+      "algorithm": "ML-DSA-65+Merkle-SHA3-256"
     }
   ],
-  "entry_count": 19,
+  "entry_count": 20,
   "created": "2026-04-12T15:17:28.389Z",
-  "last_updated": "2026-04-14T22:20:31.391Z"
+  "last_updated": "2026-04-15T13:17:27.260Z"
 }
