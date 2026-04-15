@@ -72,6 +72,72 @@ function validateUrl(urlStr) {
   return { ok: true };
 }
 
+// ── Capabilities allowlist ────────────────────────────────────────────────────
+const CAPABILITIES_ALLOWLIST = new Set([
+  "encrypted_message_receipt",
+  "ghost_seal_signing",
+  "mesh_registration",
+  "writ_attestation",
+  "writ_delegation",
+  "writ_proposal",
+  "beacon_verification",
+  "registry_propagation",
+  "federated_registry_hosting",
+  "inbox_relay",
+  "incin_relay",
+]);
+
+const MAX_TOPICS       = 10;
+const MAX_TOPIC_LEN    = 100;
+const MAX_OPERATOR_LEN = 200;
+const MAX_BEACON_ID_LEN = 64;
+
+function sanitize(str, maxLen) {
+  return String(str).replace(/[\x00-\x1f\x7f]/g, "").slice(0, maxLen);
+}
+
+function validateManifestFields(manifest) {
+  // beacon_id
+  if (manifest.beacon_id && manifest.beacon_id.length > MAX_BEACON_ID_LEN) {
+    return { valid: false, reason: `beacon_id exceeds ${MAX_BEACON_ID_LEN} characters` };
+  }
+
+  // operator name
+  const opName = manifest.operator?.organization || manifest.operator?.agent || "";
+  if (opName.length > MAX_OPERATOR_LEN) {
+    return { valid: false, reason: `operator name exceeds ${MAX_OPERATOR_LEN} characters` };
+  }
+
+  // topics
+  if (manifest.topics !== undefined) {
+    if (!Array.isArray(manifest.topics)) {
+      return { valid: false, reason: "topics must be an array" };
+    }
+    if (manifest.topics.length > MAX_TOPICS) {
+      return { valid: false, reason: `topics array exceeds maximum of ${MAX_TOPICS} entries` };
+    }
+    for (const t of manifest.topics) {
+      if (typeof t !== "string" || t.length > MAX_TOPIC_LEN) {
+        return { valid: false, reason: `each topic must be a string under ${MAX_TOPIC_LEN} characters` };
+      }
+    }
+  }
+
+  // capabilities — must be from allowlist
+  if (manifest.capabilities !== undefined) {
+    if (!Array.isArray(manifest.capabilities)) {
+      return { valid: false, reason: "capabilities must be an array" };
+    }
+    for (const c of manifest.capabilities) {
+      if (!CAPABILITIES_ALLOWLIST.has(c)) {
+        return { valid: false, reason: `unknown capability: "${c}". Must be one of: ${[...CAPABILITIES_ALLOWLIST].join(", ")}` };
+      }
+    }
+  }
+
+  return { valid: true };
+}
+
 // ── Manifest commitment — must match ceremony_join.mjs ────────────────────────
 function manifestCommitment(manifest) {
   const str = [
@@ -125,13 +191,19 @@ async function validateBeacon(nodeUrl) {
       commitment };
   }
 
-  // 4. Covenant acknowledgment — required per §6.2
+  // 4. Field validation — allowlists and size limits
+  const fieldCheck = validateManifestFields(manifest);
+  if (!fieldCheck.valid) {
+    return { valid: false, reason: "MANIFEST_FIELD_INVALID", detail: fieldCheck.reason };
+  }
+
+  // 5. Covenant acknowledgment — required per §6.2
   if (!manifest.covenant_accepted) {
     return { valid: false, reason: "COVENANT_NOT_ACCEPTED",
       detail: "manifest must include covenant_accepted: true" };
   }
 
-  // 5. Fetch beacon root — check AETHER_BEACON_BEGIN only if response is HTML
+  // 6. Fetch beacon root — check AETHER_BEACON_BEGIN only if response is HTML
   // Non-web beacons (pure API agents, CLI services) may serve JSON or nothing at root.
   // aether.json alone is sufficient conformance for non-web nodes.
   try {
@@ -250,10 +322,12 @@ export const handler = async (event) => {
   const newNode = {
     beacon_id:            manifest.beacon_id,
     url:                  normalizedUrl,
-    operator:             manifest.operator?.organization
-                          || manifest.operator?.agent
-                          || manifest.operator
-                          || "unknown",
+    operator:             sanitize(
+                            manifest.operator?.organization
+                            || manifest.operator?.agent
+                            || manifest.operator
+                            || "unknown",
+                          MAX_OPERATOR_LEN),
     registered:           today,
     status:               "ACTIVE",
     node_class:           "PARTICIPANT",

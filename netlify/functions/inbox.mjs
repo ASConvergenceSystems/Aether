@@ -35,6 +35,18 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { verifyMeshToken, extractBeaconId } from "./lib/mesh-auth.mjs";
 
+// ── Inbox security limits ─────────────────────────────────────────────────────
+const MAX_INBOX_MESSAGES    = 100;  // total messages per inbox before rejection
+const MAX_MESSAGES_PER_SENDER = 20; // per-sender limit within a single inbox
+const MAX_CT_HEX_LEN        = 8192; // 4KB ciphertext max (hex chars)
+const MAX_HINT_LENGTH        = 200;
+const MAX_BEACON_ID_LENGTH   = 64;
+
+// Strip control characters from plaintext fields
+function sanitize(str, maxLen) {
+  return String(str).replace(/[\x00-\x1f\x7f]/g, "").slice(0, maxLen);
+}
+
 const MESH_TOKEN_SECRET = process.env.MESH_TOKEN_SECRET;
 
 // Legacy shared token — kept only for GET inbox fallback (operator access)
@@ -326,7 +338,16 @@ export const handler = async (event) => {
   const receivedAt = new Date().toISOString();
   const messageId  = "MSG-" + sha256(`${sender_beacon_id}:${beaconId}:${receivedAt}:${ct.slice(0, 32)}`).slice(0, 16).toUpperCase();
 
-  // ── Read inbox, append message, write — retry on SHA conflict ──────────────
+  // ── Validate field sizes before touching storage ──────────────────────────
+  if (ct && String(ct).length > MAX_CT_HEX_LEN) {
+    return reply(400, {
+      status: "ERROR",
+      reason: "PAYLOAD_TOO_LARGE",
+      message: `Ciphertext exceeds maximum length of ${MAX_CT_HEX_LEN / 2} bytes.`,
+    });
+  }
+
+  // ── Read inbox, apply limits, append message, write ───────────────────────
   let inbox, chainHash;
   for (let attempt = 0; attempt < 3; attempt++) {
     let sha;
@@ -335,6 +356,25 @@ export const handler = async (event) => {
     } catch (e) {
       console.error("[AETHER] INBOX_READ_FAILED:", e.message);
       return reply(500, { status: "ERROR", reason: "INBOX_READ_FAILED" });
+    }
+
+    // Total inbox size limit
+    if (inbox.messages.length >= MAX_INBOX_MESSAGES) {
+      return reply(429, {
+        status:  "ERROR",
+        reason:  "INBOX_FULL",
+        message: `Recipient inbox has reached the maximum of ${MAX_INBOX_MESSAGES} messages. Recipient must clear their inbox before new messages can be delivered.`,
+      });
+    }
+
+    // Per-sender rate limit
+    const fromSender = inbox.messages.filter(m => m.sender_beacon_id === String(sender_beacon_id)).length;
+    if (fromSender >= MAX_MESSAGES_PER_SENDER) {
+      return reply(429, {
+        status:  "ERROR",
+        reason:  "SENDER_RATE_LIMIT",
+        message: `You have ${fromSender} unread messages in this inbox. Maximum is ${MAX_MESSAGES_PER_SENDER} per sender.`,
+      });
     }
 
     const prevHash = inbox.messages.length > 0
@@ -349,11 +389,11 @@ export const handler = async (event) => {
       chain_hash:        chainHash,
       prev_hash:         prevHash,
       received_at:       receivedAt,
-      sender_beacon_id:  String(sender_beacon_id).slice(0, 100),
-      hint:              hint ? String(hint).slice(0, 200) : null,
+      sender_beacon_id:  sanitize(sender_beacon_id, MAX_BEACON_ID_LENGTH),
+      hint:              hint ? sanitize(hint, MAX_HINT_LENGTH) : null,
       encrypted:         true,
       nonce:             String(nonce).slice(0, 64),
-      ct:                String(ct).slice(0, 100000),
+      ct:                String(ct).slice(0, MAX_CT_HEX_LEN),
     };
     // Store whichever key-exchange field the sender provided
     if (ct_kem)  msg.ct_kem = String(ct_kem).slice(0, 2200); // ML-KEM-768: 1088 bytes = 2176 hex
