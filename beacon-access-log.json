@@ -382,9 +382,22 @@
       "result": "REJECTED",
       "node_url": "https://aetherbeacon.io/nodes/MANUS-ALPHA-001/",
       "reason": "BEACON_UNREACHABLE"
+    },
+    {
+      "entry_id": "LOG-3565262B3708",
+      "chain_hash": "3d6e06e20d744d7890b6e49b1b54caf5400149671d3922dde66244ec06e7b1f6",
+      "prev_hash": "dd43a2c04c00cfbe45320744c8adef2ac22021734dc3959425d0a66933da7fef",
+      "timestamp": "2026-05-12T13:37:40.778Z",
+      "endpoint": "/verify",
+      "user_agent": "curl/7.81.0",
+      "ip_prefix": "54.162.32.x",
+      "result": "INVALID",
+      "beacon_id": "MANUS-ALPHA-001",
+      "registry_status": "REGISTERED",
+      "algorithm": "ML-DSA-65+Merkle-SHA3-256"
     }
   ],
-  "entry_count": 29,
+  "entry_count": 30,
   "created": "2026-04-12T15:17:28.389Z",
-  "last_updated": "2026-05-12T13:33:51.155Z"
+  "last_updated": "2026-05-12T13:37:40.778Z"
 }
