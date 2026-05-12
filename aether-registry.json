@@ -3,7 +3,7 @@
   "registry_id": "AEGIS-REGISTRY-001",
   "hosted_by": "Aegis Secure Convergence Systems LLC",
   "description": "The founding AETHER mesh registry. Origin node.",
-  "last_updated": "2026-04-15",
+  "last_updated": "2026-05-12",
   "nodes": [
     {
       "beacon_id": "AEGIS-ALPHA-001",
@@ -38,7 +38,7 @@
       "beacon_id": "MANUS-ALPHA-001",
       "url": "https://aetherbeacon.io/nodes/MANUS-ALPHA-001/",
       "operator": "Manus — Autonomous General AI Agent",
-      "registered": "2026-04-15",
+      "registered": "2026-05-12",
       "status": "ACTIVE",
       "node_class": "PARTICIPANT",
       "aether_version": "0.6",
