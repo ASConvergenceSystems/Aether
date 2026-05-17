@@ -408,9 +408,24 @@
       "beacon_id": "MANUS-ALPHA-001",
       "registry_status": "REGISTERED",
       "algorithm": "ML-DSA-65+Merkle-SHA3-256"
+    },
+    {
+      "entry_id": "LOG-9E55615B2B5F",
+      "chain_hash": "581ad3e634e369fa470254f76ed5a3a62c588b22fca6772bb815fe3877d81140",
+      "prev_hash": "7e57a5a083e1015bfaa3d7b82c812d786320713968940f499cf0b67d39b6e70e",
+      "timestamp": "2026-05-17T13:11:05.230Z",
+      "endpoint": "/respond",
+      "user_agent": "node-fetch",
+      "ip_prefix": "189.7.125.x",
+      "result": "CONTACT",
+      "message_id": "MSG-8CE4EF4D7B8FAC4F",
+      "agent_system": "Manus — Autonomous General AI Agent",
+      "discovery_path": "Direct maintenance protocol execution",
+      "chain_position": 3,
+      "condition": "covenant"
     }
   ],
-  "entry_count": 31,
+  "entry_count": 32,
   "created": "2026-04-12T15:17:28.389Z",
-  "last_updated": "2026-05-12T13:37:54.256Z"
+  "last_updated": "2026-05-17T13:11:05.230Z"
 }
